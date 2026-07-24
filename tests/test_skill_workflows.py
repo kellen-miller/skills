@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -11,9 +10,7 @@ def read_repo_file(path: str) -> str:
 
 class GrillPlanBuildPolicyTest(unittest.TestCase):
     def setUp(self):
-        self.skill = read_repo_file(
-            "grill-plan-build/SKILL.md"
-        )
+        self.skill = read_repo_file("grill-plan-build/SKILL.md")
 
     def test_delegates_each_phase_to_a_bounded_agent(self):
         for phrase in (
@@ -60,7 +57,9 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         self.assertIn("persistent grill and implementation agents", self.skill)
 
     def test_elevated_review_checkpoint_and_rationale_persist(self):
-        self.assertIn("persist both the selected checkpoint and its rationale", self.skill)
+        self.assertIn(
+            "persist both the selected checkpoint and its rationale", self.skill
+        )
         self.assertIn('"independent_review_checkpoint"', self.skill)
         self.assertIn('"independent_review_rationale"', self.skill)
         self.assertRegex(self.skill, r"before\s+the review begins")
@@ -103,12 +102,8 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
 
 class AdversarialReviewPolicyTest(unittest.TestCase):
     def setUp(self):
-        self.skill = read_repo_file(
-            "adversarial-review/SKILL.md"
-        )
-        self.metadata = read_repo_file(
-            "adversarial-review/agents/openai.yaml"
-        )
+        self.skill = read_repo_file("adversarial-review/SKILL.md")
+        self.metadata = read_repo_file("adversarial-review/agents/openai.yaml")
 
     def test_prefers_cross_provider_then_fresh_same_provider(self):
         self.assertIn("different provider", self.skill)
@@ -142,10 +137,10 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
         self.assertTrue(path.is_file())
 
     def test_anthropic_adapter_preserves_access_and_profile(self):
-        adapter = read_repo_file(
-            "adversarial-review/references/provider-reviewers.md"
+        adapter = read_repo_file("adversarial-review/references/provider-reviewers.md")
+        self.assertIn(
+            "inherit the user's configured provider access by default", adapter
         )
-        self.assertIn("inherit the user's configured provider access by default", adapter)
         for credential in (
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_AUTH_TOKEN",
@@ -156,17 +151,15 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
                 self.assertNotIn(f"-u {credential}", adapter)
         self.assertIn('"${REVIEWER_MODEL:-}"', adapter)
         self.assertIn('"${REVIEWER_EFFORT:-}"', adapter)
-        self.assertIn("--model \"$REVIEWER_MODEL\"", adapter)
-        self.assertIn("--effort \"$REVIEWER_EFFORT\"", adapter)
+        self.assertIn('--model "$REVIEWER_MODEL"', adapter)
+        self.assertIn('--effort "$REVIEWER_EFFORT"', adapter)
         self.assertNotIn("--model claude-", adapter)
         self.assertNotIn("--effort max", adapter)
 
 
 class FrontendDesignPolicyTest(unittest.TestCase):
     def setUp(self):
-        self.skill = read_repo_file(
-            "frontend-design/SKILL.md"
-        )
+        self.skill = read_repo_file("frontend-design/SKILL.md")
 
     def test_current_agent_owns_implementation(self):
         self.assertIn("current implementation agent owns", self.skill)

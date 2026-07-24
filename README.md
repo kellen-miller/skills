@@ -6,17 +6,16 @@ This repository owns the authored and managed skills installed at
     git clone https://github.com/kellen-miller/skills.git \
       ~/development/github/kellen-miller/skills
     ln -s ~/development/github/kellen-miller/skills ~/.agents/skills
-    python3 -m venv ~/.agents/skills/.venv
-    ~/.agents/skills/.venv/bin/python -m pip install \
-      -r ~/.agents/skills/requirements.txt
-    ~/.agents/skills/.venv/bin/python ~/.agents/skills/update.py sync
+    cd ~/.agents/skills
+    uv sync --locked
+    uv run --locked skillctl sync
 
 The skill directories at the repository root are authored content. Public
-upstream dependencies are declared in `deps.yaml`; `update.py sync` resolves
+upstream dependencies are declared in `deps.yaml`; `skillctl sync` resolves
 them into ignored `_managed/`. That entire directory is disposable and owned
-by the updater. The updater stages every dependency before atomically replacing
-the live tree, so acquisition or validation failure leaves the previous tree
-unchanged. Use `python update.py sync --dry-run` to resolve and report changes
+by `skillctl`. It stages every dependency before atomically replacing the live
+tree, so acquisition or validation failure leaves the previous tree unchanged.
+Use `uv run --locked skillctl sync --dry-run` to resolve and report changes
 without installing them.
 
 Each dependency chooses exactly one selection mode. `explicit` lists exact
@@ -48,3 +47,16 @@ while `extend` adds mappings to an existing explicit dependency.
 The overlay cannot remove or redefine base dependencies, change selection
 modes, or extend discovery dependencies. Keep it backed up separately; it is
 not part of this repository.
+
+## Development
+
+Use the committed uv lockfile for every local validation:
+
+    uv sync --locked
+    uv run --locked ruff check .
+    uv run --locked ruff format --check .
+    uv run --locked python -m unittest discover -s tests -v
+
+To apply the configured formatter after editing Python:
+
+    uv run --locked ruff format .

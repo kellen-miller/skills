@@ -11,9 +11,8 @@ from unittest import mock
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "update.py"
+SCRIPT = ROOT / "src" / "skillctl" / "cli.py"
 
 
 def load_module():
@@ -50,7 +49,9 @@ def make_source_repo(root):
     skill = source / "skills" / "alpha"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("---\nname: alpha\n---\n", encoding="utf-8")
-    subprocess.run(["git", "init", "-b", "main", source], check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "init", "-b", "main", source], check=True, stdout=subprocess.PIPE
+    )
     subprocess.run(
         ["git", "-C", source, "config", "user.name", "Test User"], check=True
     )
@@ -76,9 +77,7 @@ class ManifestTest(unittest.TestCase):
         root = Path(temporary.name)
         write_manifest(root)
         if manifest is not None:
-            (root / "deps.yaml").write_text(
-                yaml.safe_dump(manifest), encoding="utf-8"
-            )
+            (root / "deps.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
         if overlay is not None:
             (root / "deps.local.yaml").write_text(
                 yaml.safe_dump(overlay), encoding="utf-8"
@@ -152,7 +151,9 @@ class ManifestTest(unittest.TestCase):
 
     def test_rejects_duplicate_ids_and_destinations(self):
         duplicate = explicit_dependency()
-        with self.assertRaisesRegex(self.module.ManifestError, "duplicate dependency IDs"):
+        with self.assertRaisesRegex(
+            self.module.ManifestError, "duplicate dependency IDs"
+        ):
             self.module.load_manifest(
                 self.load({"version": 1, "dependencies": [duplicate, duplicate]})
             )
@@ -210,18 +211,14 @@ class ManifestTest(unittest.TestCase):
                     "url": "ssh://source@example.test/local.git",
                     "selection": {
                         "mode": "explicit",
-                        "include": [
-                            {"source": "skill", "destination": "local-skill"}
-                        ],
+                        "include": [{"source": "skill", "destination": "local-skill"}],
                     },
                 }
             ],
             "extend": [
                 {
                     "id": "example",
-                    "include": [
-                        {"source": "skills/beta", "destination": "beta"}
-                    ],
+                    "include": [{"source": "skills/beta", "destination": "beta"}],
                 }
             ],
         }
@@ -270,9 +267,16 @@ class ManifestTest(unittest.TestCase):
         }
         root = self.load(
             {"version": 1, "dependencies": [dependency]},
-            {"version": 1, "extend": [{"id": "discover", "include": [{"source": "x", "destination": "x"}]}]},
+            {
+                "version": 1,
+                "extend": [
+                    {"id": "discover", "include": [{"source": "x", "destination": "x"}]}
+                ],
+            },
         )
-        with self.assertRaisesRegex(self.module.ManifestError, "cannot extend discovery"):
+        with self.assertRaisesRegex(
+            self.module.ManifestError, "cannot extend discovery"
+        ):
             self.module.load_manifest(root)
 
     def test_detects_authored_roots_without_hardcoded_names(self):
@@ -318,9 +322,7 @@ class MaterializationTest(unittest.TestCase):
         dependencies, durable = self.module.load_manifest(self.root)
         output = io.StringIO()
         with redirect_stdout(output):
-            self.module.materialize(
-                self.root, dependencies, durable, dry_run=dry_run
-            )
+            self.module.materialize(self.root, dependencies, durable, dry_run=dry_run)
         return output.getvalue()
 
     def test_installs_updates_removes_and_is_idempotent(self):
@@ -357,9 +359,7 @@ class MaterializationTest(unittest.TestCase):
         lock_path = self.root / ".update.lock"
         with lock_path.open("a+") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with self.assertRaisesRegex(
-                RuntimeError, "^another sync is in progress$"
-            ):
+            with self.assertRaisesRegex(RuntimeError, "^another sync is in progress$"):
                 self.module.materialize(self.root, [], set(), dry_run=False)
         self.assertFalse((self.root / "_managed").exists())
         self.assertEqual(
@@ -371,7 +371,7 @@ class MaterializationTest(unittest.TestCase):
         old = self.root / "_managed"
         old.mkdir()
         (old / "keep.txt").write_text("unchanged", encoding="utf-8")
-        dependency = explicit_dependency(url="https://github.com/example/missing.git")
+        dependency = explicit_dependency(ref="missing-ref")
         write_manifest(self.root, [dependency])
 
         with self.assertRaises(subprocess.CalledProcessError):
@@ -399,6 +399,21 @@ class MaterializationTest(unittest.TestCase):
             list(self.root.glob("._managed.backup.*")),
             [],
         )
+
+
+class ConsoleEntryPointTest(unittest.TestCase):
+    def test_packaged_skillctl_help_is_invokable(self):
+        result = subprocess.run(
+            ["uv", "run", "--locked", "skillctl", "--help"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("usage: skillctl", result.stdout)
+        self.assertIn("sync", result.stdout)
 
 
 if __name__ == "__main__":
