@@ -29,8 +29,11 @@ list.
 ## Machine-local dependencies
 
 Create an ignored `deps.local.yaml` for dependencies that belong only on one
-machine. The overlay is additive: `add` introduces a complete new dependency,
-while `extend` adds mappings to an existing explicit dependency.
+machine. The overlay supports three keys:
+
+- `add` introduces a complete new dependency.
+- `extend` adds mappings to an existing explicit dependency.
+- `remove` excludes one or more base dependencies by ID.
 
     version: 1
     add:
@@ -46,10 +49,12 @@ while `extend` adds mappings to an existing explicit dependency.
         include:
           - source: skills/another-public-skill
             destination: another-public-skill
+    remove:
+      - googleworkspace-cli
 
-The overlay cannot remove or redefine base dependencies, change selection
-modes, or extend discovery dependencies. Keep it backed up separately; it is
-not part of this repository.
+The overlay cannot redefine base dependencies, change selection modes, extend
+discovery dependencies, or remove locally-added dependencies. Keep it backed
+up separately; it is not part of this repository.
 
 ## Development
 

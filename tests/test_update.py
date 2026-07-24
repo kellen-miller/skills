@@ -309,6 +309,49 @@ class ManifestTest(unittest.TestCase):
         ):
             self.module.load_manifest(root)
 
+    def test_overlay_removes_base_dependency(self):
+        second = explicit_dependency(
+            id="second",
+            url="https://github.com/example/second.git",
+        )
+        second["selection"]["include"] = [
+            {"source": "skills/beta", "destination": "beta"}
+        ]
+        overlay = {"version": 1, "remove": ["example"]}
+        root = self.load(
+            {"version": 1, "dependencies": [explicit_dependency(), second]},
+            overlay,
+        )
+
+        dependencies, _ = self.module.load_manifest(root)
+
+        self.assertEqual([item["id"] for item in dependencies], ["second"])
+
+    def test_overlay_remove_rejects_unknown_and_locally_added_ids(self):
+        cases = [
+            {"version": 1, "remove": ["missing"]},
+            {
+                "version": 1,
+                "add": [
+                    {
+                        "id": "local",
+                        "url": "ssh://source@example.test/local.git",
+                        "selection": {
+                            "mode": "explicit",
+                            "include": [
+                                {"source": "skill", "destination": "local-skill"}
+                            ],
+                        },
+                    }
+                ],
+                "remove": ["local"],
+            },
+        ]
+        for overlay in cases:
+            with self.subTest(overlay=overlay):
+                with self.assertRaises(self.module.ManifestError):
+                    self.module.load_manifest(self.load(overlay=overlay))
+
     def test_detects_authored_roots_without_hardcoded_names(self):
         root = self.load(authored=("custom-authored",))
         for name in ("_managed", ".github", "tests", "ordinary"):

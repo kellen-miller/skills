@@ -242,7 +242,7 @@ def load_manifest(repo_root):
         overlay = require_mapping(load_yaml(overlay_path), "deps.local.yaml")
         require_keys(
             overlay,
-            {"version", "add", "extend"},
+            {"version", "add", "extend", "remove"},
             {"version"},
             "deps.local.yaml",
         )
@@ -250,8 +250,11 @@ def load_manifest(repo_root):
             raise ManifestError("deps.local.yaml version must be 1")
         additions = overlay.get("add", [])
         extensions = overlay.get("extend", [])
+        removals = overlay.get("remove", [])
         if not isinstance(additions, list) or not isinstance(extensions, list):
             raise ManifestError("deps.local.yaml add and extend must be lists")
+        if not isinstance(removals, list):
+            raise ManifestError("deps.local.yaml remove must be a list")
         known_ids = set(ids)
         for index, raw in enumerate(additions):
             addition = normalize_dependency(
@@ -306,6 +309,17 @@ def load_manifest(repo_root):
                     f"deps.local.yaml repeats a mapping for {dependency_id}"
                 )
             dependency["selection"]["include"].extend(extra)
+
+        remove_ids = set()
+        for index, item in enumerate(removals):
+            dep_id = safe_name(item, f"deps.local.yaml.remove[{index}]")
+            if dep_id not in set(ids):
+                raise ManifestError(
+                    f"deps.local.yaml remove names unknown base dependency {dep_id}"
+                )
+            remove_ids.add(dep_id)
+        if remove_ids:
+            dependencies = [d for d in dependencies if d["id"] not in remove_ids]
 
     durable_roots = {
         path.name
