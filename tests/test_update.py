@@ -164,6 +164,36 @@ class ManifestTest(unittest.TestCase):
                 self.load({"version": 1, "dependencies": [duplicate, second]})
             )
 
+    def test_rejects_unsafe_ids_before_acquisition_or_mutation(self):
+        for dependency_id in (
+            "../escape",
+            "nested/name",
+            "nested\\name",
+            ".hidden",
+            "..",
+        ):
+            root = self.load(
+                {
+                    "version": 1,
+                    "dependencies": [explicit_dependency(id=dependency_id)],
+                }
+            )
+            managed = root / "_managed"
+            managed.mkdir()
+            marker = managed / "keep.txt"
+            marker.write_text("unchanged\n", encoding="utf-8")
+
+            with self.subTest(dependency_id=dependency_id):
+                with mock.patch.object(self.module, "run_git") as run_git:
+                    with self.assertRaises(self.module.ManifestError):
+                        dependencies, durable = self.module.load_manifest(root)
+                        self.module.materialize(
+                            root, dependencies, durable, dry_run=False
+                        )
+
+                run_git.assert_not_called()
+                self.assertEqual(marker.read_text(encoding="utf-8"), "unchanged\n")
+
     def test_rejects_unsafe_paths_and_names(self):
         invalid_sources = ["/absolute", "../escape", "a\\b", "a/./b", ""]
         for source in invalid_sources:
@@ -356,7 +386,7 @@ class MaterializationTest(unittest.TestCase):
         self.assertEqual((old / "keep.txt").read_text(), "unchanged")
 
     def test_lock_contention_fails_without_staging_or_mutation(self):
-        lock_path = self.root / ".update.lock"
+        lock_path = self.root / ".skillctl.lock"
         with lock_path.open("a+") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             with self.assertRaisesRegex(RuntimeError, "^another sync is in progress$"):

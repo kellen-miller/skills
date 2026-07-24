@@ -61,7 +61,7 @@ class PublicationPolicyTest(unittest.TestCase):
                 )
                 self.assertNotRegex(
                     path,
-                    r"(^|/)(_managed|\.update\.lock|deps\.local\.yaml)(/|$)",
+                    r"(^|/)(_managed|\.skillctl\.lock|deps\.local\.yaml)(/|$)",
                 )
                 self.assertNotIn("__pycache__", path)
                 self.assertFalse(path.endswith((".pyc", ".pyo")))
@@ -89,6 +89,14 @@ class PublicationPolicyTest(unittest.TestCase):
         self.assertIn('target-version = "py311"', project)
         self.assertIn('select = ["E4", "E7", "E9", "F", "I"]', project)
         self.assertIn('name = "ruff"', lock)
+
+    def test_ci_runs_only_for_pull_requests(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("on:\n  pull_request:\n", workflow)
+        self.assertNotIn("\n  push:", workflow)
 
     def test_obsolete_script_and_requirements_are_not_tracked(self):
         obsolete_paths = {"update" + ".py", "requirements" + ".txt"}

@@ -121,9 +121,7 @@ def normalize_dependency(raw, context, *, base):
         {"id", "url", "selection"},
         context,
     )
-    dependency_id = item["id"]
-    if not isinstance(dependency_id, str) or not dependency_id:
-        raise ManifestError(f"{context}.id must be a non-empty string")
+    dependency_id = safe_name(item["id"], f"{context}.id")
     url = item["url"]
     if not isinstance(url, str):
         raise ManifestError(f"{context}.url must be a string")
@@ -274,7 +272,9 @@ def load_manifest(repo_root):
                 {"id", "include"},
                 f"deps.local.yaml.extend[{index}]",
             )
-            dependency_id = extension["id"]
+            dependency_id = safe_name(
+                extension["id"], f"deps.local.yaml.extend[{index}].id"
+            )
             if dependency_id not in by_id:
                 raise ManifestError(
                     f"deps.local.yaml extend names unknown dependency {dependency_id}"
@@ -364,7 +364,7 @@ def trees_equal(left, right):
 
 
 def materialize(repo_root, dependencies, durable_roots, *, dry_run):
-    lock_path = repo_root / ".update.lock"
+    lock_path = repo_root / ".skillctl.lock"
     with lock_path.open("a+") as lock_file:
         try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

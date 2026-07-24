@@ -18,6 +18,9 @@ tree, so acquisition or validation failure leaves the previous tree unchanged.
 Use `uv run --locked skillctl sync --dry-run` to resolve and report changes
 without installing them.
 
+Concurrent runs are serialized by the ignored `.skillctl.lock`; a second sync
+fails immediately instead of interleaving staged trees.
+
 Each dependency chooses exactly one selection mode. `explicit` lists exact
 source and destination mappings. `discovery` selects immediate child
 directories containing `SKILL.md` beneath one root, with an optional exclude
