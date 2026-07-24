@@ -11,9 +11,9 @@ The current implementation agent owns frontend mutation, integration, browser
 evidence, validation, and the decision to accept verified findings. Do not
 delegate mutation merely because an independent reviewer exists.
 
-An independent frontend reviewer is optional and follows the parent risk budget.
-When `grill-plan-build` selects frontend review, that review satisfies the parent workflow's selected independent-review checkpoint.
-Do not run a second independent review under a generic adversarial label.
+When frontend work is in scope, both fixed adversarial boundary events use a
+frontend-specific packet. Each packet consumes its corresponding parent event
+instead of creating an additional review.
 
 ## Preconditions
 
@@ -53,11 +53,14 @@ The planning agent identifies:
   closeout
 - validation commands that prove the frontend result
 
-Invoke `$adversarial-review` with a frontend-specific packet only when the
-parent risk budget selected planning as the independent checkpoint.
+Invoke `$adversarial-review` with a frontend-specific packet after planning is
+complete. This consumes the parent workflow's one planning-boundary adversarial event
+and does not add a second generic adversarial review.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
-Rejected recommendations must be ignored; do not carry them forward as noise.
+Verify every finding, fix or disposition valid findings, and rerun relevant
+validation. Rejected recommendations must be ignored; do not carry them forward
+as noise. Never re-invoke the adversarial reviewer for that boundary.
 
 ## Implementation Pass
 
@@ -104,11 +107,13 @@ needed but unavailable, record the gap as a blocker or residual risk.
 
 ## Independent Frontend Review
 
-When the parent risk budget selects implementation review, gather the diff,
-planning artifacts, rendered evidence, component and token files, and
+After implementation and the normal closeout review are complete, gather the
+diff, planning artifacts, rendered evidence, component and token files, and
 validation output. Invoke `$adversarial-review` once with a frontend-specific
-lens. Use its provider-selection and status contract. The implementation owner
-verifies every finding before changing code.
+lens. This consumes the parent workflow's one implementation-boundary adversarial event
+and does not add a second generic adversarial review. Use its provider-selection
+and status contract. The implementation owner verifies every finding before
+changing code.
 
 Ask the reviewer to look for serious issues in:
 
@@ -118,8 +123,8 @@ Ask the reviewer to look for serious issues in:
 - mismatch between plan, implementation, screenshots, and validation evidence
 - unnecessary backwards compatibility or legacy UI noise
 
-Resolve verified critical and high findings before finalization. Fix bounded
-medium and low findings when they improve the result; otherwise record them as
-residual risk.
+Fix or disposition valid findings, rerun relevant validation, and finalize.
+Never re-invoke the adversarial reviewer for that boundary, including after
+critical or high findings.
 
 Do not preserve backwards compatibility unless the plan explicitly requires it.

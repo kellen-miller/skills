@@ -18,26 +18,118 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
             "fresh planning agent",
             "persistent implementation agent",
             "fresh closeout reviewer",
-            "optional independent reviewer",
+            "fresh planning adversarial reviewer",
+            "fresh implementation adversarial reviewer",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.skill)
 
-    def test_standard_path_has_one_improvement_and_one_review(self):
+    def test_risk_changes_plan_depth_not_review_event_count(self):
         self.assertIn(
             "exactly one `$execplan-improve` attempt",
             self.skill,
         )
-        self.assertIn("| Standard |", self.skill)
-        self.assertIn("no independent review", self.skill)
+        self.assertIn(
+            "| Tier | Typical shape | Plan-improvement depth | Planning "
+            "adversarial review | Normal closeout review | Implementation "
+            "adversarial review |",
+            self.skill,
+        )
+        for tier in ("Standard", "Elevated", "Critical"):
+            with self.subTest(tier=tier):
+                row = next(
+                    line
+                    for line in self.skill.splitlines()
+                    if line.startswith(f"| {tier} |")
+                )
+                self.assertEqual(row.count("Exactly one adversarial event"), 2)
+                self.assertIn("Exactly one closeout event", row)
+
+        self.assertIn(
+            "Risk changes plan-improvement depth and reviewer capability, "
+            "not review-event count.",
+            self.skill,
+        )
         self.assertNotIn("Default to 3", self.skill)
         self.assertNotIn("up to 3 times", self.skill)
 
-    def test_normal_review_skills_are_alternatives(self):
-        self.assertIn("selects exactly one normal review skill", self.skill)
-        self.assertIn("alternatives, not additive defaults", self.skill)
-        self.assertNotIn("also invoke `$code-review`", self.skill)
-        self.assertNotIn("Then invoke `$adversarial-review`", self.skill)
+    def test_implementation_review_order_is_fixed(self):
+        review_section = self.skill.split("### Step 4: Review Agents", 1)[1].split(
+            "## Fallback Path", 1
+        )[0]
+        self.assertIn("selects exactly one normal review skill", review_section)
+        self.assertIn("alternatives, not additive defaults", review_section)
+        self.assertNotIn("also invoke `$code-review`", review_section)
+        self.assertEqual(
+            review_section.count("Run exactly one normal closeout review"), 1
+        )
+        self.assertEqual(
+            review_section.count(
+                "Run exactly one implementation-boundary adversarial review"
+            ),
+            1,
+        )
+
+        ordered_phrases = (
+            "Run exactly one normal closeout review",
+            "Fix or disposition its verified findings and rerun relevant validation",
+            "Run exactly one implementation-boundary adversarial review",
+            "Fix or disposition its verified findings, rerun relevant validation, "
+            "and finalize",
+        )
+        offsets = [review_section.index(phrase) for phrase in ordered_phrases]
+        self.assertEqual(offsets, sorted(offsets))
+
+    def test_adversarial_reviews_are_fixed_completed_boundary_events(self):
+        self.assertIn(
+            "Run exactly one planning-boundary adversarial review after planning "
+            "is complete",
+            self.skill,
+        )
+        self.assertIn(
+            "Run exactly one implementation-boundary adversarial review after "
+            "implementation and normal closeout are complete",
+            self.skill,
+        )
+        planning_section = self.skill.split("### Step 2: Planning Agent", 1)[1].split(
+            "### Step 3: Goal And Implementation Agent", 1
+        )[0]
+        implementation_section = self.skill.split("### Step 4: Review Agents", 1)[
+            1
+        ].split("## Fallback Path", 1)[0]
+        for section in (planning_section, implementation_section):
+            self.assertIn(
+                "Never re-invoke the adversarial reviewer for that boundary",
+                section,
+            )
+            self.assertIn("including after critical or high findings", section)
+        for obsolete in (
+            "no independent review",
+            "selected independent-review checkpoint",
+            "independent_review_checkpoint",
+            "independent_review_rationale",
+            "Allow at most one re-review",
+            "risk-selected planning",
+            "risk-selected implementation",
+            "risk budget selects",
+            "risk budget selected",
+            "optional independent reviewer",
+        ):
+            with self.subTest(obsolete=obsolete):
+                self.assertNotIn(obsolete, self.skill)
+
+    def test_completed_adversarial_boundary_is_not_replaceable(self):
+        normalized = " ".join(self.skill.split())
+        self.assertIn(
+            "The continuation-or-replacement rule ends when an adversarial "
+            "reviewer returns its completed boundary status.",
+            normalized,
+        )
+        self.assertIn(
+            "Context loss, reviewer unavailability, later fixes, changed "
+            "artifacts, and failed validation do not reopen that boundary",
+            normalized,
+        )
 
     def test_main_agent_owns_workspace_and_goal(self):
         self.assertIn(
@@ -55,14 +147,6 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         )
         self.assertRegex(self.skill, r"not the orchestrator's\s+conclusions")
         self.assertIn("persistent grill and implementation agents", self.skill)
-
-    def test_elevated_review_checkpoint_and_rationale_persist(self):
-        self.assertIn(
-            "persist both the selected checkpoint and its rationale", self.skill
-        )
-        self.assertIn('"independent_review_checkpoint"', self.skill)
-        self.assertIn('"independent_review_rationale"', self.skill)
-        self.assertRegex(self.skill, r"before\s+the review begins")
 
     def test_reasoning_profiles_do_not_default_to_maximum(self):
         self.assertIn("Do not prescribe `xhigh` or `max`", self.skill)
@@ -99,6 +183,15 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
     def test_generated_directory_is_not_a_public_skill_name(self):
         self.assertNotIn("$gen/", self.skill)
 
+    def test_metadata_advertises_fixed_review_lifecycle(self):
+        metadata = read_repo_file("grill-plan-build/agents/openai.yaml")
+        self.assertIn(
+            "one planning adversarial review, one normal closeout review, and "
+            "one implementation adversarial review",
+            metadata,
+        )
+        self.assertNotIn("risk-based review budget", metadata)
+
 
 class AdversarialReviewPolicyTest(unittest.TestCase):
     def setUp(self):
@@ -115,6 +208,20 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
         self.assertIn("Do not spawn nested reviewers by default", self.skill)
         self.assertNotIn("ask two independent subagents", self.skill)
         self.assertNotIn("whoever finds the largest number", self.skill)
+
+    def test_one_invocation_ends_with_validation_not_re_review(self):
+        self.assertIn(
+            "One invocation evaluates one completed planning or implementation "
+            "boundary.",
+            self.skill,
+        )
+        self.assertIn(
+            "rerun relevant validation, and return control without re-invoking "
+            "adversarial review for that boundary",
+            self.skill,
+        )
+        self.assertNotIn("Re-review at most once", self.skill)
+        self.assertNotIn("risk-gated by its caller", self.skill)
 
     def test_status_records_provider_and_independence(self):
         for field in (
@@ -166,12 +273,37 @@ class FrontendDesignPolicyTest(unittest.TestCase):
         self.assertNotIn("Use Codex as", self.skill)
         self.assertNotIn("implementer: codex", self.skill)
 
-    def test_frontend_review_consumes_parent_checkpoint(self):
+    def test_frontend_review_consumes_each_fixed_boundary_event(self):
+        planning_section = self.skill.split("## Planning Pass", 1)[1].split(
+            "## Implementation Pass", 1
+        )[0]
+        review_section = self.skill.split("## Independent Frontend Review", 1)[1]
         self.assertIn(
-            "satisfies the parent workflow's selected independent-review checkpoint",
-            self.skill,
+            "consumes the parent workflow's one planning-boundary adversarial event",
+            planning_section,
         )
-        self.assertIn("Do not run a second independent review", self.skill)
+        self.assertIn(
+            "consumes the parent workflow's one implementation-boundary "
+            "adversarial event",
+            review_section,
+        )
+        for section in (planning_section, review_section):
+            self.assertIn(
+                "does not add a second generic adversarial review",
+                section,
+            )
+            self.assertIn(
+                "Never re-invoke the adversarial reviewer for that boundary",
+                section,
+            )
+        for obsolete in (
+            "optional and follows the parent risk budget",
+            "selected independent-review checkpoint",
+            "risk budget selected",
+            "risk budget selects",
+        ):
+            with self.subTest(obsolete=obsolete):
+                self.assertNotIn(obsolete, self.skill)
 
     def test_reviewer_selection_is_provider_neutral(self):
         self.assertIn("Invoke `$adversarial-review`", self.skill)
