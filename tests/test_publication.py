@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_IDS = {
     "superpowers",
@@ -21,16 +22,15 @@ ALLOWED_FILES = {
     ".gitignore",
     "LICENSE",
     "README.md",
+    "requirements.txt",
     "deps.yaml",
-    "pyproject.toml",
-    "uv.lock",
+    "update.py",
 }
 ALLOWED_PREFIXES = (
     ".github/workflows/",
     "adversarial-review/",
     "frontend-design/",
     "grill-plan-build/",
-    "src/skillctl/",
     "tests/",
 )
 
@@ -45,13 +45,13 @@ class PublicationPolicyTest(unittest.TestCase):
             stdout=subprocess.PIPE,
         )
         cls.tracked = [
-            path.decode("utf-8") for path in result.stdout.split(b"\0") if path
+            path.decode("utf-8")
+            for path in result.stdout.split(b"\0")
+            if path
         ]
 
     def test_tracked_layout_contains_only_public_authored_content(self):
-        self.assertTrue(
-            self.tracked, "stage or commit the public tree before this test"
-        )
+        self.assertTrue(self.tracked, "stage or commit the public tree before this test")
         for path in self.tracked:
             with self.subTest(path=path):
                 self.assertTrue(
@@ -80,24 +80,9 @@ class PublicationPolicyTest(unittest.TestCase):
                     r"^https://github\.com/[^/]+/[^/]+\.git$",
                 )
 
-    def test_project_exposes_locked_skillctl_and_ruff(self):
-        project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
-
-        self.assertIn('requires-python = ">=3.11"', project)
-        self.assertIn('skillctl = "skillctl.cli:main"', project)
-        self.assertIn('target-version = "py311"', project)
-        self.assertIn('select = ["E4", "E7", "E9", "F", "I"]', project)
-        self.assertIn('name = "ruff"', lock)
-
-    def test_obsolete_script_and_requirements_are_not_tracked(self):
-        obsolete_paths = {"update" + ".py", "requirements" + ".txt"}
-        self.assertTrue(obsolete_paths.isdisjoint(self.tracked))
-
     def test_tracked_content_has_no_credentials_or_generated_markers(self):
         forbidden = re.compile(
-            r"git"
-            + r"@|"
+            r"git" + r"@|"
             + r"BEGIN (?:RSA|OPENSSH|EC) PRIVATE "
             + r"KEY|"
             + r"gh"

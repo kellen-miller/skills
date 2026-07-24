@@ -12,13 +12,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/setup-python@v5
         with:
-          version: "0.11.32"
-          enable-cache: true
+          python-version: "3"
       - name: Prove GitHub credentials are absent
         shell: bash
         run: |
@@ -37,10 +36,9 @@ jobs:
       - name: Test and regenerate anonymously
         shell: bash
         run: |
-          uv sync --locked
-          uv run --locked ruff check .
-          uv run --locked ruff format --check .
-          uv run --locked python -m unittest discover -s tests -v
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          .venv/bin/python -m unittest discover -s tests -v
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
-            GIT_TERMINAL_PROMPT=0 uv run --locked skillctl sync
+            GIT_TERMINAL_PROMPT=0 .venv/bin/python update.py sync
           test -z "$(git status --short --untracked-files=all)"
