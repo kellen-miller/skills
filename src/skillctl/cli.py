@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import os
 import shutil
 import subprocess
 import sys
@@ -66,7 +65,9 @@ def unique_strings(value, context, *, paths=False):
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ManifestError(f"{context} must be a list of strings")
     normalized = [
-        safe_repo_path(item, f"{context} entry") if paths else safe_name(item, f"{context} entry")
+        safe_repo_path(item, f"{context} entry")
+        if paths
+        else safe_name(item, f"{context} entry")
         for item in value
     ]
     if len(set(normalized)) != len(normalized):
@@ -76,9 +77,7 @@ def unique_strings(value, context, *, paths=False):
 
 def beneath_sparse(path, prefixes):
     return any(
-        prefix == "."
-        or path == prefix
-        or path.startswith(f"{prefix}/")
+        prefix == "." or path == prefix or path.startswith(f"{prefix}/")
         for prefix in prefixes
     )
 
@@ -155,7 +154,9 @@ def normalize_dependency(raw, context, *, base):
             {"mode", "include"},
             f"{context}.selection",
         )
-        include = normalize_include(selection["include"], f"{context}.selection.include")
+        include = normalize_include(
+            selection["include"], f"{context}.selection.include"
+        )
         if sparse:
             for mapping in include:
                 if not beneath_sparse(mapping["source"], sparse):
@@ -177,7 +178,9 @@ def normalize_dependency(raw, context, *, base):
             selection.get("exclude", []), f"{context}.selection.exclude"
         )
         if sparse and not beneath_sparse(root, sparse):
-            raise ManifestError(f"{context} discovery root {root} is outside sparse paths")
+            raise ManifestError(
+                f"{context} discovery root {root} is outside sparse paths"
+            )
         normalized_selection = {"mode": mode, "root": root, "exclude": exclude}
     else:
         raise ManifestError(f"{context}.selection.mode must be explicit or discovery")
@@ -221,7 +224,9 @@ def validate_destinations(dependencies, durable_roots):
 def load_manifest(repo_root):
     base_path = repo_root / "deps.yaml"
     base = require_mapping(load_yaml(base_path), "deps.yaml")
-    require_keys(base, {"version", "dependencies"}, {"version", "dependencies"}, "deps.yaml")
+    require_keys(
+        base, {"version", "dependencies"}, {"version", "dependencies"}, "deps.yaml"
+    )
     if base["version"] != 1:
         raise ManifestError("deps.yaml version must be 1")
     if not isinstance(base["dependencies"], list):
@@ -305,9 +310,7 @@ def load_manifest(repo_root):
     durable_roots = {
         path.name
         for path in repo_root.iterdir()
-        if path.is_dir()
-        and path.name != "_managed"
-        and (path / "SKILL.md").is_file()
+        if path.is_dir() and path.name != "_managed" and (path / "SKILL.md").is_file()
     }
     validate_destinations(dependencies, durable_roots)
     return dependencies, durable_roots
@@ -331,7 +334,9 @@ def ensure_safe_tree(source, clone_root):
             try:
                 path.resolve(strict=True).relative_to(clone_root)
             except (FileNotFoundError, ValueError) as error:
-                raise RuntimeError(f"source symlink escapes repository: {path}") from error
+                raise RuntimeError(
+                    f"source symlink escapes repository: {path}"
+                ) from error
 
 
 def trees_equal(left, right):
@@ -397,7 +402,11 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                     if selection["mode"] == "explicit":
                         mappings = selection["include"]
                     else:
-                        root = clone if selection["root"] == "." else clone / selection["root"]
+                        root = (
+                            clone
+                            if selection["root"] == "."
+                            else clone / selection["root"]
+                        )
                         if not root.is_dir():
                             raise RuntimeError(
                                 f"{dependency['id']} discovery root does not exist: "
@@ -408,7 +417,9 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                                 "source": child.relative_to(clone).as_posix(),
                                 "destination": child.name,
                             }
-                            for child in sorted(root.iterdir(), key=lambda path: path.name)
+                            for child in sorted(
+                                root.iterdir(), key=lambda path: path.name
+                            )
                             if child.is_dir()
                             and child.name not in selection["exclude"]
                             and (child / "SKILL.md").is_file()
@@ -423,7 +434,11 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                             )
                         if destination in destinations:
                             raise RuntimeError(f"duplicate destination {destination}")
-                        source = clone if mapping["source"] == "." else clone / mapping["source"]
+                        source = (
+                            clone
+                            if mapping["source"] == "."
+                            else clone / mapping["source"]
+                        )
                         if not source.is_dir() or not (source / "SKILL.md").is_file():
                             raise RuntimeError(
                                 f"{dependency['id']} source is not a skill: "
@@ -442,7 +457,9 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
 
                 current = repo_root / "_managed"
                 old_names = (
-                    {path.name for path in current.iterdir()} if current.is_dir() else set()
+                    {path.name for path in current.iterdir()}
+                    if current.is_dir()
+                    else set()
                 )
                 new_names = {path.name for path in stage.iterdir()}
                 for name in sorted(new_names - old_names):
@@ -480,11 +497,16 @@ def main(argv=None):
     sync_parser = subparsers.add_parser("sync")
     sync_parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[2]
     try:
         dependencies, durable_roots = load_manifest(repo_root)
         materialize(repo_root, dependencies, durable_roots, dry_run=args.dry_run)
-    except (ManifestError, RuntimeError, OSError, subprocess.CalledProcessError) as error:
+    except (
+        ManifestError,
+        RuntimeError,
+        OSError,
+        subprocess.CalledProcessError,
+    ) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
     return 0
