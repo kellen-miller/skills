@@ -1,0 +1,8 @@
+_managed/
+._managed.backup.*/
+.update.lock
+deps.local.yaml
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store

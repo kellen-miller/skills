@@ -1,0 +1,88 @@
+version: 1
+dependencies:
+  - id: superpowers
+    url: https://github.com/obra/superpowers.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
+      exclude:
+        - executing-plans
+        - test-driven-development
+        - writing-plans
+        - brainstorming
+        - using-superpowers
+  - id: terraform-skill
+    url: https://github.com/antonbabenko/terraform-skill.git
+    selection:
+      mode: explicit
+      include:
+        - source: skills/terraform-skill
+          destination: terraform-skill
+  - id: cloudflare-skills
+    url: https://github.com/cloudflare/skills.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
+  - id: datadog-pup
+    url: https://github.com/DataDog/pup.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
+  - id: openfga
+    url: https://github.com/openfga/agent-skills.git
+    sparse: [skills/openfga]
+    selection:
+      mode: explicit
+      include:
+        - source: skills/openfga
+          destination: openfga
+  - id: googleworkspace-cli
+    url: https://github.com/googleworkspace/cli.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
+  - id: unslop-ai-text
+    url: https://github.com/JCarterJohnson/vibecoded-design-tells.git
+    sparse: [unslop-ai-text/skill]
+    selection:
+      mode: explicit
+      include:
+        - source: unslop-ai-text/skill
+          destination: unslop-ai-text
+  - id: useful-codex-skills
+    url: https://github.com/grp06/useful-codex-skills.git
+    ref: codex/add-grillcraft
+    selection:
+      mode: discovery
+      root: .
+  - id: mattpocock-skills
+    url: https://github.com/mattpocock/skills.git
+    sparse: [skills/engineering, skills/productivity]
+    selection:
+      mode: explicit
+      include:
+        - {source: skills/engineering/ask-matt, destination: ask-matt}
+        - {source: skills/engineering/code-review, destination: code-review}
+        - {source: skills/engineering/codebase-design, destination: codebase-design}
+        - {source: skills/engineering/diagnosing-bugs, destination: diagnosing-bugs}
+        - {source: skills/engineering/domain-modeling, destination: domain-modeling}
+        - {source: skills/engineering/grill-with-docs, destination: grill-with-docs}
+        - {source: skills/engineering/implement, destination: implement}
+        - {source: skills/engineering/improve-codebase-architecture, destination: improve-codebase-architecture}
+        - {source: skills/engineering/prototype, destination: prototype}
+        - {source: skills/engineering/research, destination: research}
+        - {source: skills/engineering/resolving-merge-conflicts, destination: resolving-merge-conflicts}
+        - {source: skills/engineering/setup-matt-pocock-skills, destination: setup-matt-pocock-skills}
+        - {source: skills/engineering/tdd, destination: tdd}
+        - {source: skills/engineering/to-spec, destination: to-spec}
+        - {source: skills/engineering/to-tickets, destination: to-tickets}
+        - {source: skills/engineering/triage, destination: triage}
+        - {source: skills/engineering/wayfinder, destination: wayfinder}
+        - {source: skills/productivity/grilling, destination: grilling}
+        - {source: skills/productivity/handoff, destination: handoff}
+        - {source: skills/productivity/teach, destination: teach}
+        - {source: skills/productivity/writing-great-skills, destination: writing-great-skills}

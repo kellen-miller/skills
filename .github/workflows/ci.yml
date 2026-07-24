@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3"
+      - name: Prove GitHub credentials are absent
+        shell: bash
+        run: |
+          status=0
+          git config --show-origin --get-regexp '^http\..*\.extraheader$' \
+            >"$RUNNER_TEMP/git-extraheaders.txt" || status=$?
+          if [ "$status" -eq 0 ]; then
+            cat "$RUNNER_TEMP/git-extraheaders.txt"
+            echo "Git HTTP extraheader remains configured" >&2
+            exit 1
+          fi
+          if [ "$status" -ne 1 ]; then
+            echo "Unable to audit Git HTTP extraheaders" >&2
+            exit "$status"
+          fi
+      - name: Test and regenerate anonymously
+        shell: bash
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          .venv/bin/python -m unittest discover -s tests -v
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            GIT_TERMINAL_PROMPT=0 .venv/bin/python update.py sync
+          test -z "$(git status --short --untracked-files=all)"
