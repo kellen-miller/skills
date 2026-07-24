@@ -314,7 +314,9 @@ class ManifestTest(unittest.TestCase):
             id="second",
             url="https://github.com/example/second.git",
         )
-        second["selection"]["include"] = [{"source": "skills/beta", "destination": "beta"}]
+        second["selection"]["include"] = [
+            {"source": "skills/beta", "destination": "beta"}
+        ]
         overlay = {"version": 1, "remove": ["example"]}
         root = self.load(
             {"version": 1, "dependencies": [explicit_dependency(), second]},
@@ -336,7 +338,9 @@ class ManifestTest(unittest.TestCase):
                         "url": "ssh://source@example.test/local.git",
                         "selection": {
                             "mode": "explicit",
-                            "include": [{"source": "skill", "destination": "local-skill"}],
+                            "include": [
+                                {"source": "skill", "destination": "local-skill"}
+                            ],
                         },
                     }
                 ],
