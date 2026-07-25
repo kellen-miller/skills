@@ -16,9 +16,10 @@ from a different provider than the author. The reviewer finds serious risks;
 the calling agent verifies each claim against repository or runtime evidence
 before changing plans, code, or status.
 
-This checkpoint is risk-gated by its caller. It is not automatically additive
-to every normal or formal review. Run one fresh reviewer. Do not spawn nested reviewers by default.
-Multi-reviewer debate requires explicit critical-risk escalation.
+One invocation evaluates one completed planning or implementation boundary. Run one fresh reviewer.
+Do not spawn nested reviewers by default. Critical risk may increase the
+reviewer's capability or reasoning effort, but it does not add reviewers or
+another invocation for the same boundary.
 
 ## Reviewer Selection
 
@@ -107,5 +108,6 @@ when possible as an audit trail.
 
 Treat every finding as a claim. Verify it, fix valid bounded issues, update
 planning artifacts when intent or risk changes, reject unsupported compatibility
-requests, and rerun relevant validation. Re-review at most once and only when
-verified critical or high fixes materially changed the reviewed surface.
+requests, rerun relevant validation, and return control without re-invoking adversarial review for that boundary.
+This remains true after critical or high findings and after material changes to
+the reviewed surface.

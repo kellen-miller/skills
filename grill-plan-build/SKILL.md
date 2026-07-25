@@ -66,7 +66,7 @@ Every `$skill` reference resolves in this order:
 When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
 the launch packet and require the subagent to read and execute it in its fresh
 context. File-path execution satisfies the phase contract; it does not relax the
-Fresh-Context Launch Contract or the risk and review budget.
+Fresh-Context Launch Contract or the fixed review lifecycle.
 
 ## Skill Routing
 
@@ -94,8 +94,9 @@ Use the smallest set of supporting skills that improves the work.
   changes module shape, public interfaces, seams, adapters, or testability.
 - Frontend design lens: use `$frontend-design` when frontend UI, visual design,
   layout, CSS, component composition, responsive behavior, or design-system fit
-  materially affects the result. Select a frontend-specific independent review
-  only through the risk and review budget.
+  materially affects the result. At each adversarial boundary, a
+  frontend-specific packet consumes that boundary's one event instead of
+  adding another generic adversarial review.
 - TDD lens: use `$tdd` during implementation slices when behavior can be
   verified at an agreed seam.
 - Formal review: use `$code-review` only when there is both a fixed point such
@@ -151,8 +152,8 @@ Use these phase agents when subagents are available:
   no-activation mode with exactly one `$execplan-improve` attempt by default
 - one persistent implementation agent invoking `$implement-execplan`
 - one fresh closeout reviewer invoking exactly one normal review skill
-- one optional independent reviewer invoking `$adversarial-review` when the
-  risk budget selects that checkpoint
+- one fresh planning adversarial reviewer invoking `$adversarial-review`
+- one fresh implementation adversarial reviewer invoking `$adversarial-review`
 
 Reuse the grill agent across user answers and the implementation agent across
 milestones. Always use fresh planning and review contexts. Only one mutating
@@ -167,28 +168,28 @@ with the missing requirements. Replace it only when its context is corrupted,
 it is unavailable, or the retry fails. Stop with an evidence-backed blocker if
 the replacement still cannot satisfy the phase contract.
 
-## Risk And Review Budget
+The continuation-or-replacement rule ends when an adversarial reviewer returns
+its completed boundary status. Context loss, reviewer unavailability, later
+fixes, changed artifacts, and failed validation do not reopen that boundary or
+authorize another adversarial-review invocation for it.
 
-| Tier | Typical shape | Planning | Closeout |
-| --- | --- | --- | --- |
-| Standard | Bounded feature or refactor with ordinary rollback | Exactly one improvement attempt and no independent review | One closeout reviewer |
-| Elevated | Architecture, public interface, meaningful production rollout, or difficult recovery | Exactly one improvement attempt; one independent review only when planning is the selected checkpoint | One closeout reviewer; one independent review only when implementation is selected |
-| Critical | Security, authz, billing, credible data loss, destructive migration, or similarly irreversible change | Up to two improvement attempts and one independent review | One closeout reviewer and one independent review |
+## Risk And Review Lifecycle
 
-For elevated work, choose the higher-leverage independent checkpoint and
-persist both the selected checkpoint and its rationale in the work item before
-the review begins. Record them either in `decision.md` under `Independent
-review` or in `meta.json` as
-`"independent_review_checkpoint": "planning" | "implementation"` and
-`"independent_review_rationale": "<why this checkpoint is higher leverage>"`.
-Do not run both automatically. Allow at most one re-review when verified
-critical or high fixes materially change the reviewed surface. Validation after
-medium or low fixes does not create another independent review.
+| Tier | Typical shape | Plan-improvement depth | Planning adversarial review | Normal closeout review | Implementation adversarial review |
+| --- | --- | --- | --- | --- | --- |
+| Standard | Bounded feature or refactor with ordinary rollback | Exactly one improvement attempt | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
+| Elevated | Architecture, public interface, meaningful production rollout, or difficult recovery | Exactly one improvement attempt | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
+| Critical | Security, authz, billing, credible data loss, destructive migration, or similarly irreversible change | Up to two improvement attempts | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
+
+Risk changes plan-improvement depth and reviewer capability, not review-event count.
+Every tier runs the same three review events in lifecycle order. Findings may
+change the work and validation evidence, but they never create another review
+event at the completed boundary.
 
 ## Independent Reviewer Selection
 
-Use this ordered selection contract for every risk-selected planning or
-implementation independent review, including the fallback path:
+Use this ordered selection contract for each planning-boundary and
+implementation-boundary adversarial review, including the fallback path:
 
 1. Identify the authoring provider when the runtime exposes it.
 2. Discover suitable read-only review mechanisms available in the current
@@ -345,17 +346,20 @@ and incomplete frontend design states.
 
 Accept the phase only when the artifacts preserve confirmed decisions, contain
 observable validation, and leave `meta.json` at `stage="plan"` and
-`state="completed"`. Run a planning independent review only when the risk
-budget selects it, using the Independent Reviewer Selection contract. The
-planning agent never activates a Goal. For elevated work, verify the work item
-already persists the selected independent-review checkpoint and its rationale
-before accepting the planning packet.
+`state="completed"`. Run exactly one planning-boundary adversarial review after planning is complete,
+using the Independent Reviewer Selection contract. If frontend work is in
+scope, its frontend-specific packet consumes this event. Verify each finding,
+fix or disposition valid findings, update the planning artifacts when needed,
+and rerun relevant validation. Never re-invoke the adversarial reviewer for that boundary,
+including after critical or high findings. The planning agent never activates
+a Goal.
 
 ### Step 3: Goal And Implementation Agent
 
-After accepting the planning packet and any selected planning review, the main
-agent invokes `$goalcraft`. Then spawn one persistent implementation agent for
-the explicit work-item path and tell it to invoke `$implement-execplan`.
+After accepting the planning packet and completing its one adversarial review,
+the main agent invokes `$goalcraft`. Then spawn one persistent implementation
+agent for the explicit work-item path and tell it to invoke
+`$implement-execplan`.
 
 The implementation agent sets active state, implements vertical slices, keeps
 the ExecPlan living sections current, validates meaningful slices, records
@@ -383,26 +387,27 @@ or migration shims unless `decision.md` records an explicit requirement.
 
 ### Step 4: Review Agents
 
-Spawn a fresh closeout reviewer after implementation.
-The main agent selects exactly one normal review skill. It chooses
-`$review-recent-work` for workflow
+Run exactly one normal closeout review after implementation. The main agent
+selects exactly one normal review skill: `$review-recent-work` for workflow
 closeout or `$code-review` for an explicitly requested formal branch/PR review
-or a risk-selected standards/spec split.
-They are alternatives, not additive defaults.
+or standards/spec split. They are alternatives, not additive defaults.
 
-Route nontrivial verified fixes to the persistent implementation agent. A
-frontend-specific independent review consumes the selected independent-review
-checkpoint instead of creating another pass. Invoke one independent reviewer
-only when the risk budget selects the implementation checkpoint. Do not ask an
-independent reviewer to spawn more reviewers unless the main agent explicitly
-escalates critical work. Use the Independent Reviewer Selection contract for
-every selected implementation checkpoint.
+Fix or disposition its verified findings and rerun relevant validation through
+the persistent implementation agent. The closeout reviewer is not the
+implementation adversarial reviewer.
 
-Review against `decision.md`, `execplan.md`, worktree and branch state,
-`git status --short`, `git diff`, relevant tests, adjacent code paths, and
-rendered evidence when UI changed. Resolve verified critical and high findings
-before finalization; fix or record medium and low findings and re-run relevant
-validation after changes.
+Run exactly one implementation-boundary adversarial review after implementation and normal closeout are complete,
+using the Independent Reviewer Selection contract. Review against
+`decision.md`, `execplan.md`, worktree and branch state, `git status --short`,
+`git diff`, relevant tests, adjacent code paths, and rendered evidence when UI
+changed. If frontend work is in scope, its frontend-specific packet consumes
+this event and does not add another generic adversarial review.
+
+Fix or disposition its verified findings, rerun relevant validation, and finalize
+through the persistent implementation agent. Never re-invoke the adversarial reviewer for that boundary,
+including after critical or high findings. Do not ask an adversarial reviewer
+to spawn more reviewers; reviewer capability may increase for critical work,
+but the event count does not.
 
 ## Fallback Path
 
@@ -410,7 +415,7 @@ Run the effort-shape gate before using this fallback. If it produces a
 Wayfinder handoff, stop there. Otherwise, when native subagents or
 `$grillcraft` are unavailable, the main agent preserves the selected risk tier,
 phase order, alternative closeout review selection, one-improvement standard
-default, and independent-review budget itself:
+default, and fixed review lifecycle itself:
 
 1. `$using-git-worktrees`
 2. `$grill-me` or `$grill-with-docs` using the Step 1 contract
@@ -418,13 +423,16 @@ default, and independent-review budget itself:
    `stage="decision"` and `state="completed"`
 4. `$execplan-create`, followed by exactly one `$execplan-improve` attempt for
    standard or elevated work, or up to two for critical work
-5. Perform a planning independent review only when the budget selects that
-   checkpoint, using the Independent Reviewer Selection contract
+5. Perform exactly one planning-boundary adversarial review, fix or disposition
+   verified findings, rerun relevant validation, and do not invoke it again
 6. The main agent invokes `$goalcraft`, then `$implement-execplan` using the
    Step 3 lifecycle contract
-7. Select exactly one closeout review: `$review-recent-work` or `$code-review`
-8. Perform an implementation independent review only when the budget selects
-   that checkpoint, using the Independent Reviewer Selection contract
+7. Perform exactly one closeout review with `$review-recent-work` or
+   `$code-review`, fix or disposition verified findings, and rerun relevant
+   validation
+8. Perform exactly one implementation-boundary adversarial review, fix or
+   disposition verified findings, rerun relevant validation, and finalize
+   without invoking it again
 
 If `/goal` is unavailable in the current Codex surface, use
 `$implement-execplan` instead of `$goalcraft` and record the limitation.
@@ -438,12 +446,12 @@ Return:
 
 - current workflow phase
 - effort-shape route and Wayfinder handoff or map status, when applicable
-- risk tier and selected independent-review checkpoint, when applicable
+- risk tier and the plan-improvement and reviewer-capability profiles used
 - worktree path, branch, base ref, and upstream/tracking state
 - work item path
 - artifacts created or updated
 - supporting lenses used or skipped
-- closeout and independent-review artifacts and outcome
+- normal closeout and both adversarial-review artifacts and outcomes
 - current lifecycle state
 - validation run
 - next action or blocker
