@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Briefing"
+  short_description: "Explore a completed implementation interactively"
+  default_prompt: "Use $explain-implementation to build an interactive, source-backed briefing for the completed work item."
