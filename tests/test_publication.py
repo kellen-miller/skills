@@ -28,6 +28,7 @@ ALLOWED_FILES = {
 ALLOWED_PREFIXES = (
     ".github/workflows/",
     "adversarial-review/",
+    "explain-implementation/",
     "frontend-design/",
     "grill-plan-build/",
     "src/skillctl/",

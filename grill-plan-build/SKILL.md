@@ -32,6 +32,7 @@ This skill orchestrates these skills when available:
 - `$implement-execplan`
 - `$review-recent-work`
 - `$adversarial-review`
+- `$explain-implementation`
 - `$using-git-worktrees`
 
 It may also use these skills as phase-specific lenses when they fit:
@@ -61,7 +62,10 @@ Every `$skill` reference resolves in this order:
 3. Resolve any paths a sub-skill references against that sub-skill's own
    directory, and inherit its declared tool and write constraints.
 4. If no matching `SKILL.md` exists, treat the lens as unavailable, continue the
-   core workflow, and note the skipped lens in the final output.
+   core workflow, and note the skipped lens in the final output. The human
+   briefing is a required finalization artifact: if `$explain-implementation`
+   and its renderer are unavailable, stop with that blocker instead of claiming
+   the workflow completed.
 
 When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
 the launch packet and require the subagent to read and execute it in its fresh
@@ -126,7 +130,7 @@ selected skill, risk tier, allowed mutations, and required status contract.
 
 ### Fresh-Context Launch Contract
 
-Fresh planning and review agents receive only a minimal task-local launch
+Fresh planning, review, and briefing agents receive only a minimal task-local launch
 packet. Do not inherit the orchestrator's conversation when the runtime
 supports no-inheritance launch controls; in the current runtime, launch a fresh
 agent with `fork_turns: "none"`. Give fresh agents the applicable lenses and
@@ -154,11 +158,12 @@ Use these phase agents when subagents are available:
 - one fresh closeout reviewer invoking exactly one normal review skill
 - one fresh planning adversarial reviewer invoking `$adversarial-review`
 - one fresh implementation adversarial reviewer invoking `$adversarial-review`
+- one fresh briefing agent invoking `$explain-implementation`
 
 Reuse the grill agent across user answers and the implementation agent across
-milestones. Always use fresh planning and review contexts. Only one mutating
-agent operates in the worktree at a time unless the main agent has explicit
-disjoint paths and an integration plan.
+milestones. Always use fresh planning, review, and briefing contexts. Only one
+mutating agent operates in the worktree at a time unless the main agent has
+explicit disjoint paths and an integration plan.
 
 If subagents are unavailable, the main agent may invoke the phase skill itself
 and must record that context isolation was unavailable.
@@ -218,6 +223,8 @@ runtime supports model selection:
 - closeout reviewer: balanced model in a fresh context, medium reasoning
 - independent reviewer: suitable different-provider model when available,
   medium reasoning; high for critical work
+- briefing agent: balanced repository-capable model in a fresh context, medium
+  reasoning
 
 For every supported phase launch, explicitly set both `model` and
 `reasoning_effort` to the concrete values selected from these profiles. Do not
@@ -409,6 +416,37 @@ including after critical or high findings. Do not ask an adversarial reviewer
 to spawn more reviewers; reviewer capability may increase for critical work,
 but the event count does not.
 
+### Step 5: Human Implementation Briefing
+
+After all review findings are dispositioned and final validation succeeds,
+spawn one fresh briefing agent with `fork_turns: "none"` and tell it to invoke
+`$explain-implementation` for the explicit work-item path.
+
+Give it raw final evidence: `decision.md`, `execplan.md`, `meta.json`, the final
+diff or commit, source and tests, validation output, review findings and
+dispositions, and rendered evidence when UI changed. Do not give it the
+implementation agent's conversational explanation.
+
+The briefing agent writes only:
+
+```text
+.agent/work/<slug>/implementation-briefing.html
+```
+
+Require that path to be ignored by Git. Never stage or commit it. Accept the
+phase only when browser validation proves the component map, execution trace,
+retrieval feedback, source links, keyboard behavior, and responsive layout work
+and `git status --short` is unchanged.
+
+This phase transfers context; it is not another review event. If reconstruction
+exposes a material contradiction, route the fix to the persistent
+implementation agent, rerun relevant validation, and regenerate the briefing.
+Never reopen either completed adversarial-review boundary or the normal
+closeout event.
+
+Return the absolute clickable briefing path before any worktree cleanup and
+state that the local-only artifact disappears with its worktree.
+
 ## Fallback Path
 
 Run the effort-shape gate before using this fallback. If it produces a
@@ -433,6 +471,8 @@ default, and fixed review lifecycle itself:
 8. Perform exactly one implementation-boundary adversarial review, fix or
    disposition verified findings, rerun relevant validation, and finalize
    without invoking it again
+9. Invoke `$explain-implementation` for the explicit work item, browser-validate
+   the ignored local briefing, and verify Git status is unchanged
 
 If `/goal` is unavailable in the current Codex surface, use
 `$implement-execplan` instead of `$goalcraft` and record the limitation.
@@ -452,6 +492,7 @@ Return:
 - artifacts created or updated
 - supporting lenses used or skipped
 - normal closeout and both adversarial-review artifacts and outcomes
+- absolute local implementation-briefing path and browser-validation outcome
 - current lifecycle state
 - validation run
 - next action or blocker

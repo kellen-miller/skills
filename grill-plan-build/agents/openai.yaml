@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill Plan Build"
-  short_description: "Orchestrate phase agents with bounded review"
-  default_prompt: "Use $grill-plan-build to route this effort and orchestrate one planning adversarial review, one normal closeout review, and one implementation adversarial review."
+  short_description: "Orchestrate bounded reviews and human briefing"
+  default_prompt: "Use $grill-plan-build to route this effort, orchestrate its fixed review lifecycle, and finish with a local interactive implementation briefing."

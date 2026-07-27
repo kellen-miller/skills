@@ -20,6 +20,7 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
             "fresh closeout reviewer",
             "fresh planning adversarial reviewer",
             "fresh implementation adversarial reviewer",
+            "fresh briefing agent",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.skill)
@@ -186,11 +187,78 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
     def test_metadata_advertises_fixed_review_lifecycle(self):
         metadata = read_repo_file("grill-plan-build/agents/openai.yaml")
         self.assertIn(
-            "one planning adversarial review, one normal closeout review, and "
-            "one implementation adversarial review",
+            "fixed review lifecycle",
             metadata,
         )
         self.assertNotIn("risk-based review budget", metadata)
+
+    def test_human_briefing_runs_after_final_review(self):
+        briefing_section = self.skill.split(
+            "### Step 5: Human Implementation Briefing", 1
+        )[1].split("## Fallback Path", 1)[0]
+        self.assertIn("`$explain-implementation`", briefing_section)
+        self.assertIn('fork_turns: "none"', briefing_section)
+        self.assertIn(
+            ".agent/work/<slug>/implementation-briefing.html",
+            briefing_section,
+        )
+        self.assertIn("Never stage or commit it", briefing_section)
+        self.assertIn("`git status --short` is unchanged", briefing_section)
+        self.assertIn("not another review event", briefing_section)
+        self.assertIn("disappears with its worktree", briefing_section)
+
+        review_offset = self.skill.index(
+            "Run exactly one implementation-boundary adversarial review"
+        )
+        briefing_offset = self.skill.index("### Step 5: Human Implementation Briefing")
+        self.assertLess(review_offset, briefing_offset)
+
+
+class ExplainImplementationPolicyTest(unittest.TestCase):
+    def setUp(self):
+        self.skill = read_repo_file("explain-implementation/SKILL.md")
+        self.metadata = read_repo_file("explain-implementation/agents/openai.yaml")
+
+    def test_is_local_single_file_human_artifact(self):
+        self.assertIn(
+            ".agent/work/<slug>/implementation-briefing.html",
+            self.skill,
+        )
+        self.assertIn("never stage or commit the page", self.skill)
+        self.assertIn("create no sidecar files", self.skill)
+        self.assertIn("keep Git status unchanged", self.skill)
+        self.assertIn("removing the worktree removes the page", self.skill)
+
+    def test_reconstructs_from_final_source_in_fresh_context(self):
+        self.assertIn("one fresh context", self.skill)
+        self.assertIn("final diff or commit", self.skill)
+        self.assertIn("Prefer final code over planned code", self.skill)
+        self.assertIn("repository-relative source reference", self.skill)
+        self.assertIn("real repository file", self.skill)
+        self.assertIn("It is not another review event", self.skill)
+
+    def test_requires_interactive_and_browser_validation(self):
+        for phrase in (
+            "component map",
+            "happy-path trace",
+            "retrieval questions",
+            "selecting a component",
+            "stepping forward and backward",
+            "keyboard focus",
+            "390px and 1280px",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+
+    def test_bundles_renderer_schema_template_and_metadata(self):
+        for path in (
+            "explain-implementation/scripts/render_briefing.py",
+            "explain-implementation/references/briefing-schema.md",
+            "explain-implementation/assets/briefing-template.html",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue((ROOT / path).is_file())
+        self.assertIn("$explain-implementation", self.metadata)
 
 
 class AdversarialReviewPolicyTest(unittest.TestCase):
