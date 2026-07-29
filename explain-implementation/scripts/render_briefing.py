@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,9 @@ from typing import Any
 
 class BriefingError(ValueError):
     """Raised when briefing evidence violates the rendering contract."""
+
+
+STABLE_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def run_git(repo_root: Path, *args: str) -> bytes:
@@ -31,6 +35,13 @@ def require_text(value: Any, location: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise BriefingError(f"{location} must be a non-empty string")
     return value.strip()
+
+
+def require_stable_id(value: Any, location: str) -> str:
+    stable_id = require_text(value, location)
+    if not STABLE_ID_PATTERN.fullmatch(stable_id):
+        raise BriefingError(f"{location} must be a stable lowercase id")
+    return stable_id
 
 
 def validate_source(source: Any, location: str) -> None:
@@ -64,8 +75,8 @@ def source_references(data: dict[str, Any]):
 def validate_briefing(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise BriefingError("briefing input must be an object")
-    if data.get("schema_version") != 1:
-        raise BriefingError("schema_version must be 1")
+    if data.get("schema_version") != 2:
+        raise BriefingError("schema_version must be 2")
 
     require_text(data.get("title"), "title")
     require_text(data.get("summary"), "summary")
@@ -86,13 +97,19 @@ def validate_briefing(data: Any) -> dict[str, Any]:
     concepts = orientation.get("concepts")
     if not isinstance(concepts, list) or not concepts:
         raise BriefingError("orientation.concepts must be a non-empty array")
+    concept_ids: set[str] = set()
     for index, concept in enumerate(concepts):
+        location = f"orientation.concepts[{index}]"
         if not isinstance(concept, dict):
-            raise BriefingError(f"orientation.concepts[{index}] must be an object")
-        require_text(concept.get("name"), f"orientation.concepts[{index}].name")
+            raise BriefingError(f"{location} must be an object")
+        concept_id = require_stable_id(concept.get("id"), f"{location}.id")
+        if concept_id in concept_ids:
+            raise BriefingError(f"duplicate orientation concept id: {concept_id}")
+        concept_ids.add(concept_id)
+        require_text(concept.get("name"), f"{location}.name")
         require_text(
             concept.get("explanation"),
-            f"orientation.concepts[{index}].explanation",
+            f"{location}.explanation",
         )
 
     components = data.get("components")
@@ -103,7 +120,7 @@ def validate_briefing(data: Any) -> dict[str, Any]:
         location = f"components[{index}]"
         if not isinstance(component, dict):
             raise BriefingError(f"{location} must be an object")
-        component_id = require_text(component.get("id"), f"{location}.id")
+        component_id = require_stable_id(component.get("id"), f"{location}.id")
         if component_id in component_ids:
             raise BriefingError(f"duplicate component id: {component_id}")
         component_ids.add(component_id)
@@ -130,7 +147,7 @@ def validate_briefing(data: Any) -> dict[str, Any]:
         location = f"flows[{flow_index}]"
         if not isinstance(flow, dict):
             raise BriefingError(f"{location} must be an object")
-        flow_id = require_text(flow.get("id"), f"{location}.id")
+        flow_id = require_stable_id(flow.get("id"), f"{location}.id")
         if flow_id in flow_ids:
             raise BriefingError(f"duplicate flow id: {flow_id}")
         flow_ids.add(flow_id)
@@ -139,10 +156,15 @@ def validate_briefing(data: Any) -> dict[str, Any]:
         steps = flow.get("steps")
         if not isinstance(steps, list) or not steps:
             raise BriefingError(f"{location}.steps must be a non-empty array")
+        step_ids: set[str] = set()
         for step_index, step in enumerate(steps):
             step_location = f"{location}.steps[{step_index}]"
             if not isinstance(step, dict):
                 raise BriefingError(f"{step_location} must be an object")
+            step_id = require_stable_id(step.get("id"), f"{step_location}.id")
+            if step_id in step_ids:
+                raise BriefingError(f"duplicate {location} step id: {step_id}")
+            step_ids.add(step_id)
             component_id = require_text(
                 step.get("component"), f"{step_location}.component"
             )
@@ -164,10 +186,15 @@ def validate_briefing(data: Any) -> dict[str, Any]:
         collection = data.get(collection_name)
         if not isinstance(collection, list) or not collection:
             raise BriefingError(f"{collection_name} must be a non-empty array")
+        item_ids: set[str] = set()
         for index, item in enumerate(collection):
             location = f"{collection_name}[{index}]"
             if not isinstance(item, dict):
                 raise BriefingError(f"{location} must be an object")
+            item_id = require_stable_id(item.get("id"), f"{location}.id")
+            if item_id in item_ids:
+                raise BriefingError(f"duplicate {collection_name} id: {item_id}")
+            item_ids.add(item_id)
             for key in text_keys:
                 require_text(item.get(key), f"{location}.{key}")
 
@@ -208,11 +235,17 @@ def validate_briefing(data: Any) -> dict[str, Any]:
         collection = data.get(collection_name, [])
         if not isinstance(collection, list):
             raise BriefingError(f"{collection_name} must be an array")
+        item_ids: set[str] = set()
         for index, item in enumerate(collection):
+            location = f"{collection_name}[{index}]"
             if not isinstance(item, dict):
-                raise BriefingError(f"{collection_name}[{index}] must be an object")
+                raise BriefingError(f"{location} must be an object")
+            item_id = require_stable_id(item.get("id"), f"{location}.id")
+            if item_id in item_ids:
+                raise BriefingError(f"duplicate {collection_name} id: {item_id}")
+            item_ids.add(item_id)
             for key in text_keys:
-                require_text(item.get(key), f"{collection_name}[{index}].{key}")
+                require_text(item.get(key), f"{location}.{key}")
 
     return data
 

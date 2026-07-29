@@ -16,6 +16,7 @@ EXPECTED_IDS = {
     "unslop-ai-text",
     "useful-codex-skills",
     "mattpocock-skills",
+    "lavish-axi",
 }
 ALLOWED_FILES = {
     ".gitignore",
@@ -90,6 +91,30 @@ class PublicationPolicyTest(unittest.TestCase):
         self.assertIn('target-version = "py311"', project)
         self.assertIn('select = ["E4", "E7", "E9", "F", "I"]', project)
         self.assertIn('name = "ruff"', lock)
+
+    def test_lavish_skill_is_an_explicit_managed_dependency(self):
+        manifest = yaml.safe_load((ROOT / "deps.yaml").read_text(encoding="utf-8"))
+        dependency = next(
+            item for item in manifest["dependencies"] if item["id"] == "lavish-axi"
+        )
+
+        self.assertEqual(
+            dependency["url"],
+            "https://github.com/kunchenguid/lavish-axi.git",
+        )
+        self.assertEqual(dependency["sparse"], ["skills/lavish"])
+        self.assertEqual(
+            dependency["selection"],
+            {
+                "mode": "explicit",
+                "include": [
+                    {
+                        "source": "skills/lavish",
+                        "destination": "lavish",
+                    }
+                ],
+            },
+        )
 
     def test_ci_runs_only_for_pull_requests(self):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(

@@ -25,7 +25,7 @@ it is verified against the rendered snapshot.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "title": "Human-readable feature name",
   "summary": "One sentence describing the implemented capability.",
   "snapshot": {
@@ -43,6 +43,7 @@ it is verified against the rendered snapshot.
     },
     "concepts": [
       {
+        "id": "reservation",
         "name": "Reservation",
         "explanation": "A temporary inventory claim owned by the order flow."
       }
@@ -96,6 +97,7 @@ it is verified against the rendered snapshot.
       "summary": "A valid request reserves inventory and persists an order.",
       "steps": [
         {
+          "id": "validate-request",
           "component": "handler",
           "title": "Validate the request",
           "detail": "The transport boundary rejects malformed identifiers.",
@@ -105,6 +107,7 @@ it is verified against the rendered snapshot.
           }
         },
         {
+          "id": "coordinate-order",
           "component": "service",
           "title": "Coordinate the order",
           "detail": "The service reserves inventory before persisting.",
@@ -118,6 +121,7 @@ it is verified against the rendered snapshot.
   ],
   "decisions": [
     {
+      "id": "service-owns-ordering",
       "title": "Keep ordering in the service",
       "choice": "One visible executor",
       "reason": "The side-effect order is a business invariant.",
@@ -137,6 +141,7 @@ it is verified against the rendered snapshot.
   ],
   "change_recipes": [
     {
+      "id": "change-request-validation",
       "goal": "Change request validation",
       "start_here": {
         "path": "internal/orders/handler.go",
@@ -156,6 +161,7 @@ it is verified against the rendered snapshot.
   ],
   "verification": [
     {
+      "id": "reservation-precedes-persistence",
       "behavior": "Inventory is reserved before persistence",
       "tests": [
         {
@@ -173,6 +179,7 @@ it is verified against the rendered snapshot.
   ],
   "questions": [
     {
+      "id": "malformed-identifier-boundary",
       "prompt": "Where should malformed identifiers be rejected?",
       "choices": [
         "The handler boundary",
@@ -188,6 +195,7 @@ it is verified against the rendered snapshot.
   ],
   "risks": [
     {
+      "id": "reservation-expiration",
       "title": "Reservation expiration",
       "detail": "The current flow relies on the inventory service timeout.",
       "mitigation": "Watch reservation timeout metrics during rollout."
@@ -195,6 +203,7 @@ it is verified against the rendered snapshot.
   ],
   "glossary": [
     {
+      "id": "reservation",
       "term": "Reservation",
       "definition": "A temporary inventory claim made before order persistence."
     }
@@ -204,7 +213,12 @@ it is verified against the rendered snapshot.
 
 ## Content rules
 
-- Use stable lowercase IDs for components and flows.
+- Use stable lowercase IDs for concepts, components, flows, flow steps,
+  decisions, change recipes, verification claims, questions, risks, and
+  glossary entries. Use lowercase letters and numbers separated by single
+  hyphens.
+- Keep IDs stable when prose changes. The renderer uses them as durable DOM
+  annotation targets for Lavish feedback.
 - Point every `connects_to` value and flow-step `component` at a declared
   component ID.
 - Keep component roles distinct. If two components appear to own the same
