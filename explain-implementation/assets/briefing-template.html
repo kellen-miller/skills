@@ -310,6 +310,40 @@
       text-decoration: underline;
     }
 
+    .source-reference {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      max-width: 100%;
+    }
+
+    .source-copy {
+      min-height: 30px;
+      margin: 6px 6px 0 0;
+      padding: 0 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .source-copy-value {
+      flex: 1 1 100%;
+      min-width: 0;
+      margin: 4px 6px 0 0;
+      padding: 6px 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
     .component-layout {
       display: grid;
       grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.55fr);
@@ -449,6 +483,23 @@
       background: var(--accent-strong);
       border-color: var(--accent-strong);
       color: var(--surface);
+    }
+
+    .lavish-only {
+      display: none;
+    }
+
+    html.lavish-active .lavish-only {
+      display: inline-flex;
+    }
+
+    .lavish-action {
+      align-items: center;
+      min-height: 36px;
+      margin-top: 14px;
+      padding: 0 12px;
+      color: var(--accent-strong);
+      font-size: 0.78rem;
     }
 
     .trace-stage {
@@ -728,6 +779,7 @@
       .jump-nav,
       .trace-controls,
       .trace-dots,
+      .lavish-only,
       .quiz-card .button {
         display: none;
       }
@@ -951,6 +1003,29 @@
         return node;
       }
 
+      function identify(node, kind, id) {
+        node.id = `${kind}-${id}`;
+        node.dataset.briefingKind = kind;
+        node.dataset.briefingId = id;
+        return node;
+      }
+
+      function lavishAction(label, prompt, target, kind, id, extra = {}) {
+        const action = element("button", "button lavish-only lavish-action", label);
+        action.type = "button";
+        action.addEventListener("click", () => {
+          if (!window.lavish?.queuePrompt) return;
+          window.lavish.queuePrompt(prompt, {
+            tag: "implementation-briefing",
+            text: `${kind}: ${label}`,
+            element: target,
+            queueKey: `implementation-briefing:${kind}:${id}`,
+            data: { kind, id, ...extra },
+          });
+        });
+        return action;
+      }
+
       function appendTextList(parent, items, ordered = false) {
         if (!items.length) return;
         const list = element(ordered ? "ol" : "ul");
@@ -971,12 +1046,36 @@
         link.href = encodeURI(`file://${root}/${source.path}`);
         link.target = "_blank";
         link.rel = "noreferrer";
+        link.dataset.sourcePath = source.path;
+        if (source.line) link.dataset.sourceLine = String(source.line);
+        link.title = "Open this local source reference";
         return link;
+      }
+
+      function sourceReference(source) {
+        const reference = element("span", "source-reference");
+        const copy = element("button", "source-copy lavish-only", "Copy path");
+        const line = source.line ? `:${source.line}` : "";
+        const symbol = source.symbol ? ` · ${source.symbol}` : "";
+        const copyValue = element("input", "source-copy-value lavish-only");
+        copyValue.type = "text";
+        copyValue.readOnly = true;
+        copyValue.hidden = true;
+        copyValue.value = `${source.path}${line}${symbol}`;
+        copy.type = "button";
+        copy.addEventListener("click", () => {
+          copyValue.hidden = false;
+          copyValue.focus();
+          copyValue.select();
+          copy.textContent = "Press Cmd/Ctrl+C";
+        });
+        reference.append(sourceLink(source), copy, copyValue);
+        return reference;
       }
 
       function sourceGroup(sources) {
         const group = element("div");
-        sources.forEach((source) => group.append(sourceLink(source)));
+        sources.forEach((source) => group.append(sourceReference(source)));
         return group;
       }
 
@@ -1006,14 +1105,25 @@
       document.getElementById("after").textContent = data.orientation.after;
       document
         .getElementById("entry-point")
-        .append(sourceLink(data.orientation.entry_point));
+        .append(sourceReference(data.orientation.entry_point));
 
       const concepts = document.getElementById("concepts");
       data.orientation.concepts.forEach((concept) => {
-        const card = element("article", "panel");
+        const card = identify(
+          element("article", "panel"),
+          "concept",
+          concept.id
+        );
         card.append(
           element("h3", "", concept.name),
-          element("p", "", concept.explanation)
+          element("p", "", concept.explanation),
+          lavishAction(
+            "Explain this concept",
+            `Explain the ${concept.name} concept at a deeper implementation level.`,
+            card,
+            "concept",
+            concept.id
+          )
         );
         concepts.append(card);
       });
@@ -1041,6 +1151,8 @@
         });
 
         componentDetail.replaceChildren();
+        componentDetail.dataset.briefingKind = "component";
+        componentDetail.dataset.briefingId = component.id;
         componentDetail.append(
           element("p", "panel-label", "Selected boundary"),
           element("h3", "", component.name),
@@ -1075,11 +1187,25 @@
           componentDetail.append(connections);
         }
 
-        componentDetail.append(sourceGroup(component.sources));
+        componentDetail.append(
+          sourceGroup(component.sources),
+          lavishAction(
+            "Ask about this boundary",
+            `Explain ${component.name} more deeply, including its ownership and invariants.`,
+            componentDetail,
+            "component",
+            component.id,
+            { sources: component.sources.map(sourceLabel) }
+          )
+        );
       }
 
       data.components.forEach((component) => {
-        const button = element("button", "component-node");
+        const button = identify(
+          element("button", "component-node"),
+          "component",
+          component.id
+        );
         button.type = "button";
         button.dataset.componentId = component.id;
         button.setAttribute("aria-pressed", "false");
@@ -1105,6 +1231,8 @@
       function renderTrace() {
         const flow = data.flows[flowIndex];
         const step = flow.steps[stepIndex];
+        const traceStep = document.querySelector(".trace-step");
+        identify(traceStep, `step-${flow.id}`, step.id);
         document.getElementById("flow-summary").textContent = flow.summary;
         document.getElementById("trace-progress").textContent =
           `Step ${stepIndex + 1} of ${flow.steps.length}`;
@@ -1114,7 +1242,23 @@
         document.getElementById("trace-detail").textContent = step.detail;
         document
           .getElementById("trace-source")
-          .replaceChildren(sourceLink(step.source));
+          .replaceChildren(sourceReference(step.source));
+        traceStep.querySelector(".lavish-action")?.remove();
+        traceStep.append(
+          lavishAction(
+            "Walk me through this step",
+            `Walk through the ${step.title} step at code level and explain what fails here.`,
+            traceStep,
+            "flow-step",
+            `${flow.id}:${step.id}`,
+            {
+              flow: flow.id,
+              step: step.id,
+              component: step.component,
+              source: sourceLabel(step.source),
+            }
+          )
+        );
         document.getElementById("previous-step").disabled = stepIndex === 0;
         document.getElementById("next-step").disabled =
           stepIndex === flow.steps.length - 1;
@@ -1156,25 +1300,43 @@
 
       const decisionGrid = document.getElementById("decision-grid");
       data.decisions.forEach((decision) => {
-        const card = element("article", "panel");
+        const card = identify(
+          element("article", "panel"),
+          "decision",
+          decision.id
+        );
         card.append(
           element("p", "panel-label", decision.choice),
           element("h3", "", decision.title),
           element("p", "", decision.reason)
         );
         appendTextList(card, decision.tradeoffs);
-        card.append(sourceGroup(decision.sources));
+        card.append(
+          sourceGroup(decision.sources),
+          lavishAction(
+            "Explain this tradeoff",
+            `Explain why ${decision.choice} won and what would justify revisiting it.`,
+            card,
+            "decision",
+            decision.id,
+            { sources: decision.sources.map(sourceLabel) }
+          )
+        );
         decisionGrid.append(card);
       });
 
       const recipeGrid = document.getElementById("recipe-grid");
       data.change_recipes.forEach((recipe) => {
-        const card = element("details", "panel");
+        const card = identify(
+          element("details", "panel"),
+          "recipe",
+          recipe.id
+        );
         card.append(element("summary", "", recipe.goal));
         const start = element("div");
         start.append(
           element("p", "panel-label", "Start here"),
-          sourceLink(recipe.start_here)
+          sourceReference(recipe.start_here)
         );
         card.append(start);
         if (recipe.steps.length) {
@@ -1189,12 +1351,26 @@
           card.append(element("p", "panel-label", "Prove it"));
           appendTextList(card, recipe.tests);
         }
+        card.append(
+          lavishAction(
+            "Help me make this change",
+            `Guide me through this maintenance task: ${recipe.goal}.`,
+            card,
+            "change-recipe",
+            recipe.id,
+            { source: sourceLabel(recipe.start_here) }
+          )
+        );
         recipeGrid.append(card);
       });
 
       const verificationList = document.getElementById("verification-list");
       data.verification.forEach((verification) => {
-        const row = element("article", "verification-row");
+        const row = identify(
+          element("article", "verification-row"),
+          "verification",
+          verification.id
+        );
         row.append(element("h3", "", verification.behavior));
         const evidence = element("div");
         verification.commands.forEach((command) => {
@@ -1203,12 +1379,26 @@
         evidence.append(sourceGroup(verification.tests));
         appendTextList(evidence, verification.evidence);
         row.append(evidence);
+        evidence.append(
+          lavishAction(
+            "Explain this proof",
+            `Explain how the recorded tests and commands prove: ${verification.behavior}.`,
+            row,
+            "verification",
+            verification.id
+          )
+        );
         verificationList.append(row);
       });
 
       const quizList = document.getElementById("quiz-list");
       data.questions.forEach((question, questionIndex) => {
-        const card = element("article", "panel quiz-card");
+        const card = identify(
+          element("article", "panel quiz-card"),
+          "question",
+          question.id
+        );
+        card.dataset.lavishQuestion = question.id;
         card.append(element("h3", "", question.prompt));
         const choices = element("div", "choices");
         question.choices.forEach((choice, choiceIndex) => {
@@ -1224,6 +1414,14 @@
         check.type = "button";
         const feedback = element("p", "quiz-feedback");
         feedback.setAttribute("aria-live", "polite");
+        const ask = lavishAction(
+          "I still need help with this",
+          `I need a deeper explanation for this retrieval question: ${question.prompt}`,
+          card,
+          "question",
+          question.id,
+          { source: sourceLabel(question.source) }
+        );
         check.addEventListener("click", () => {
           const selected = choices.querySelector("input:checked");
           feedback.classList.remove("is-correct", "is-incorrect");
@@ -1236,21 +1434,28 @@
           feedback.textContent = `${correct ? "Correct." : "Not yet."} ${
             question.explanation
           }`;
-          feedback.append(" ", sourceLink(question.source));
+          feedback.append(" ", sourceReference(question.source));
         });
-        card.append(choices, check, feedback);
+        card.append(choices, check, feedback, ask);
         quizList.append(card);
       });
 
       const riskGrid = document.getElementById("risk-grid");
       data.risks.forEach((risk) => {
-        const card = element("article", "panel");
+        const card = identify(element("article", "panel"), "risk", risk.id);
         card.append(
           element("p", "panel-label", "Known limit"),
           element("h3", "", risk.title),
           element("p", "", risk.detail),
           element("p", "panel-label", "Mitigation"),
-          element("p", "", risk.mitigation)
+          element("p", "", risk.mitigation),
+          lavishAction(
+            "Explain this limit",
+            `Explain the operational consequences of this known limit: ${risk.title}.`,
+            card,
+            "risk",
+            risk.id
+          )
         );
         riskGrid.append(card);
       });
@@ -1259,7 +1464,11 @@
       const glossaryPanel = document.getElementById("glossary-panel");
       const glossaryList = document.getElementById("glossary-list");
       data.glossary.forEach((entry) => {
-        const row = element("div");
+        const row = identify(
+          element("div"),
+          "glossary",
+          entry.id
+        );
         row.append(
           element("dt", "", entry.term),
           element("dd", "", entry.definition)
@@ -1267,6 +1476,13 @@
         glossaryList.append(row);
       });
       if (!data.glossary.length) glossaryPanel.hidden = true;
+
+      window.addEventListener("load", () => {
+        document.documentElement.classList.toggle(
+          "lavish-active",
+          Boolean(window.lavish?.queuePrompt)
+        );
+      });
     })();
   </script>
 </body>

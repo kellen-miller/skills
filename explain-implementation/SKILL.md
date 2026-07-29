@@ -28,6 +28,10 @@ Treat the page as a local human artifact:
 - keep Git status unchanged
 - state that removing the worktree removes the page
 
+The standalone HTML remains authoritative. Lavish wraps the rendered page as a
+local feedback surface; it does not replace the schema, renderer, source
+validation, browser validation, or portable direct-open experience.
+
 Do not write a decorated diff summary. Explain the feature lifecycle from its
 main entry point, then progressively expose boundaries, execution paths,
 decisions, change recipes, proof, and retrieval questions.
@@ -93,7 +97,7 @@ invariant, test, failure path, or operational behavior.
 ## Build The Briefing
 
 Read [references/briefing-schema.md](references/briefing-schema.md) completely.
-Create valid schema-version `1` JSON in a temporary OS directory outside the
+Create valid schema-version `2` JSON in a temporary OS directory outside the
 repository.
 
 The content must provide:
@@ -136,7 +140,9 @@ The renderer:
 - embeds all data, CSS, and JavaScript into one HTML file
 - fails if rendering changes Git status
 
-Remove the temporary rendering directory after a successful render.
+Keep the temporary rendering directory only through the ownership session so
+feedback can update the evidence model and rerender the same page. Remove it
+when the session or direct-browser fallback is complete.
 
 ## Validate The Experience
 
@@ -149,10 +155,50 @@ Open the HTML in a browser and verify:
 - a retrieval answer produces correct feedback and source evidence
 - keyboard focus and controls work
 - the layout remains readable at approximately 390px and 1280px widths
-- source links point at real repository files
+- source links point at real repository files, and Lavish mode exposes a
+  working copy-path control when its HTTP iframe cannot open `file://` links
 - `git status --short` matches its pre-render state
 
 Fix the skill output or evidence and rerender when validation fails.
+
+## Lavish Ownership Session
+
+After standalone browser validation succeeds, open the same file with the
+reviewed Lavish CLI and telemetry disabled:
+
+```bash
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 <briefing-path>
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 poll <briefing-path> \
+  --agent-reply "The briefing is ready; start with the orientation and flow."
+```
+
+Keep each poll in the foreground. When a parent workflow invoked this skill,
+the main agent owns the foreground poll and forwards its result to this same
+briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
+Never invoke `lavish-axi share`; the implementation evidence remains local.
+Keep the server on loopback.
+
+Lavish wraps the rendered page without becoming part of it. Use its annotations
+and structured actions to distinguish:
+
+- an explanation gap: update the temporary evidence model and rerender the same
+  HTML path
+- a source question: answer with the exact repository reference and improve the
+  page when the explanation was insufficient
+- a material contradiction: return it to the implementation owner, rerun
+  relevant validation, and regenerate the briefing
+- a browser `layout_warnings` result: repair and recheck before asking the human
+  to continue
+
+Poll again after each feedback batch. A timeout, interruption, or feedback
+response does not finish the loop. Stop when the user ends the session, and do
+not reopen a user-ended session without an explicit request.
+
+If the pinned CLI and its documented installed-copy fallbacks cannot run, use
+the direct-browser fallback: preserve all standalone validation, return the
+absolute page path, handle questions in chat, and record the unavailable
+Lavish capability. Lavish availability never weakens the briefing renderer or
+changes the single-file artifact boundary.
 
 ## Return
 
@@ -162,5 +208,6 @@ Report:
 - the work item and source snapshot
 - which flows and maintenance recipes it covers
 - browser and Git-status validation
+- Lavish ownership-session or direct-browser fallback outcome
 - any evidence gaps or reconstruction blocker
 - that the artifact is local-only and disappears with its worktree

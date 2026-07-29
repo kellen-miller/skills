@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+LAVISH_CLI = "LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43"
 
 
 def read_repo_file(path: str) -> str:
@@ -213,6 +214,43 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         briefing_offset = self.skill.index("### Step 5: Human Implementation Briefing")
         self.assertLess(review_offset, briefing_offset)
 
+    def test_human_plan_review_precedes_planning_adversarial_review(self):
+        planning_section = self.skill.split("### Step 2: Planning Agent", 1)[1].split(
+            "### Step 3: Goal And Implementation Agent", 1
+        )[0]
+        for phrase in (
+            ".agent/work/<slug>/plan-review.html",
+            "`decision.md` and `execplan.md` remain authoritative",
+            "explicit plan approval",
+            "`plan-approval`",
+            "current plan revision",
+            "foreground poll",
+            "same planning agent",
+            "Never stage or commit the plan-review page",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, planning_section)
+
+        review_offset = planning_section.index("explicit plan approval")
+        adversarial_offset = planning_section.index(
+            "Run exactly one planning-boundary adversarial review"
+        )
+        self.assertLess(review_offset, adversarial_offset)
+
+    def test_lavish_contract_is_local_pinned_and_has_direct_fallback(self):
+        for phrase in (
+            LAVISH_CLI,
+            "loopback",
+            "Never invoke `lavish-axi share`",
+            "no remote CDN or sidecar assets",
+            "direct-browser fallback",
+            "main agent owns every Lavish foreground poll",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+
+        self.assertNotIn("npx -y lavish-axi share", self.skill)
+
 
 class ExplainImplementationPolicyTest(unittest.TestCase):
     def setUp(self):
@@ -259,6 +297,25 @@ class ExplainImplementationPolicyTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((ROOT / path).is_file())
         self.assertIn("$explain-implementation", self.metadata)
+
+    def test_lavish_wraps_the_briefing_without_replacing_the_renderer(self):
+        for phrase in (
+            LAVISH_CLI,
+            "Lavish wraps the rendered page",
+            "standalone HTML remains authoritative",
+            "single-file artifact boundary",
+            "foreground poll",
+            "direct-browser fallback",
+            "Never invoke `lavish-axi share`",
+            "user ends the session",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.skill)
+
+        self.assertLess(
+            self.skill.index("python3 scripts/render_briefing.py"),
+            self.skill.index(f"{LAVISH_CLI} <briefing-path>"),
+        )
 
 
 class AdversarialReviewPolicyTest(unittest.TestCase):

@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill Plan Build"
-  short_description: "Orchestrate bounded reviews and human briefing"
-  default_prompt: "Use $grill-plan-build to route this effort, orchestrate its fixed review lifecycle, and finish with a local interactive implementation briefing."
+  short_description: "Plan visually, build, review, and transfer ownership"
+  default_prompt: "Use $grill-plan-build to route this effort, run its local human plan review and fixed review lifecycle, then finish with a local interactive implementation briefing."

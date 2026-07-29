@@ -86,3 +86,10 @@ dependencies:
         - {source: skills/productivity/handoff, destination: handoff}
         - {source: skills/productivity/teach, destination: teach}
         - {source: skills/productivity/writing-great-skills, destination: writing-great-skills}
+  - id: lavish-axi
+    url: https://github.com/kunchenguid/lavish-axi.git
+    sparse: [skills/lavish]
+    selection:
+      mode: explicit
+      include:
+        - {source: skills/lavish, destination: lavish}
