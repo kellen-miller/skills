@@ -62,11 +62,12 @@ Every `$skill` reference resolves in this order:
    Match by the target's frontmatter `name`, not by directory name alone.
 3. Resolve any paths a sub-skill references against that sub-skill's own
    directory, and inherit its declared tool and write constraints.
-4. If no matching `SKILL.md` exists, treat the lens as unavailable, continue the
-   core workflow, and note the skipped lens in the final output. The human
-   briefing is a required finalization artifact: if `$explain-implementation`
-   and its renderer are unavailable, stop with that blocker instead of claiming
-   the workflow completed.
+4. If no matching `SKILL.md` exists, treat an optional lens as unavailable,
+   continue the core workflow, and note the skipped lens in the final output.
+   `$lavish` and the human briefing are required phase dependencies. If
+   `$lavish`, `$explain-implementation`, or its renderer is unavailable, stop
+   the affected phase with that blocker instead of substituting another review
+   surface or claiming the workflow completed.
 
 When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
 the launch packet and require the subagent to read and execute it in its fresh
@@ -113,9 +114,10 @@ Use the smallest set of supporting skills that improves the work.
 - Worktree guard: invoke `$using-git-worktrees` before creating `.agent/work`
   artifacts or mutating repository files.
 
-Do not invoke supporting lenses just because they are installed. If a lens is
-unavailable, continue with the core workflow and note the skipped lens in the
-final output.
+Do not invoke supporting lenses just because they are installed. If an optional
+lens is unavailable, continue with the core workflow and note the skipped lens
+in the final output. This does not apply to the required `$lavish` plan-review
+and implementation-ownership sessions.
 
 ## Orchestrator Contract
 
@@ -244,34 +246,36 @@ risk, uncertainty, or repeated failed attempts.
 
 ## Lavish Review Contract
 
-Use `$lavish` as a human feedback surface around local HTML projections. It
-does not replace `decision.md`, `execplan.md`, implementation source, review
-evidence, or the deterministic implementation-briefing renderer.
-Every projection stays self-contained with no remote CDN or sidecar assets;
-prefer inline SVG when a diagram would otherwise require a browser runtime.
+Lavish is required for the human plan-review and implementation-ownership
+phases. The phase author produces the local source HTML that Lavish serves,
+annotates, and uses for structured feedback. Lavish does not replace
+`decision.md`, `execplan.md`, implementation source, review evidence, or the
+deterministic implementation-briefing renderer.
 
-For this workflow, override unpinned commands from upstream guidance and use
-the reviewed CLI version with telemetry disabled:
+Follow `$lavish`'s current invocation guidance without pinning a CLI version.
+Disable telemetry for this local workflow:
 
 ```bash
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 <html-path>
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 poll <html-path> \
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <html-path>
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <html-path> \
   --agent-reply "<what changed or what to review>"
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 end <html-path>
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi end <html-path>
 ```
 
+If `npx -y` cannot run, use only the installed-copy invocations documented by
+`$lavish`. If none can start or resume a Lavish session, stop the current phase
+as blocked. Do not substitute direct-open HTML, chat-only approval, or another
+feedback surface.
+
+Every projection stays self-contained with no remote CDN or sidecar assets;
+prefer inline SVG when a diagram would otherwise require a browser runtime.
 Keep the server on its default loopback binding. Never invoke `lavish-axi share`;
 plans and implementation evidence remain local. The main agent owns every Lavish foreground poll
 and forwards returned feedback to the phase author. Do not hide a poll behind
 `&`, `nohup`, an unobserved PTY, or another mechanism that cannot resume the
 main agent. A poll timeout, interruption, layout warning, or feedback batch is
-not session completion; follow its `next_step` and poll again.
-
-Use the direct-browser fallback when the pinned CLI cannot run after its
-documented installed-copy fallbacks. Preserve the same explicit human approval
-or ownership gate in chat, record the unavailable capability, and continue to
-validate the standalone HTML. Lavish session state is tool state, not a work
-item artifact.
+not session completion; follow its `next_step` and poll again. Lavish session
+state is tool state, not a work item artifact.
 
 ## Workflow
 
@@ -408,10 +412,9 @@ updates the authoritative artifacts first and then rerenders the same HTML path
 so the session live-reloads.
 
 Do not infer approval from opening the page, choosing an option, ending the
-session, or silence. Require explicit plan approval from the page's submitted
-approval action matching the current plan revision or from the user in chat.
-Record the review mode, approved revision, and outcome in `meta.json`. With the
-direct-browser fallback, collect the same explicit approval in chat.
+session, chat messages, or silence. Require the page's submitted
+`plan-approval` action matching the current plan revision. Record the Lavish
+session, approved revision, and outcome in `meta.json`.
 
 Accept the phase only when the authoritative artifacts preserve confirmed
 decisions, contain observable validation, leave `meta.json` at `stage="plan"`
@@ -502,13 +505,11 @@ phase only when browser validation proves the component map, execution trace,
 retrieval feedback, source links or Lavish copy-path controls, keyboard
 behavior, and responsive layout work and `git status --short` is unchanged.
 
-The main agent then opens the standalone page under the Lavish Review Contract
+The main agent then opens the rendered page under the Lavish Review Contract
 and owns the foreground poll. Forward annotations to the same briefing agent.
 For explanation gaps, the briefing agent updates its evidence model and
 rerenders the same path. A user-ended session completes the ownership loop; do
-not infer comprehension or reopen it uninvited. With the direct-browser
-fallback, return the page after browser validation and handle follow-up
-questions in chat.
+not infer comprehension or reopen it uninvited.
 
 This phase transfers context; it is not another review event. If reconstruction
 exposes a material contradiction, route the fix to the persistent
@@ -545,9 +546,9 @@ default, and fixed review lifecycle itself:
 9. Perform exactly one implementation-boundary adversarial review, fix or
    disposition verified findings, rerun relevant validation, and finalize
    without invoking it again
-10. Invoke `$explain-implementation` for the explicit work item, browser-validate
-    the ignored local briefing, run its Lavish ownership loop or direct-browser
-    fallback, and verify Git status is unchanged
+10. Invoke `$explain-implementation` for the explicit work item, validate the
+    ignored local briefing through Lavish, complete its ownership loop, and
+    verify Git status is unchanged
 
 If `/goal` is unavailable in the current Codex surface, use
 `$implement-execplan` instead of `$goalcraft` and record the limitation.
@@ -565,7 +566,7 @@ Return:
 - worktree path, branch, base ref, and upstream/tracking state
 - work item path
 - artifacts created or updated
-- plan-review path, mode, explicit approval, and feedback disposition
+- plan-review path, Lavish session, explicit approval, and feedback disposition
 - supporting lenses used or skipped
 - normal closeout and both adversarial-review artifacts and outcomes
 - absolute local implementation-briefing path and browser-validation outcome

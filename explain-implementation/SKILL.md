@@ -28,9 +28,10 @@ Treat the page as a local human artifact:
 - keep Git status unchanged
 - state that removing the worktree removes the page
 
-The standalone HTML remains authoritative. Lavish wraps the rendered page as a
-local feedback surface; it does not replace the schema, renderer, source
-validation, browser validation, or portable direct-open experience.
+The renderer produces the source HTML that Lavish serves and annotates. Lavish
+is the required review and ownership interface. The renderer remains the
+deterministic content boundary for schema, source, and Git-state validation;
+direct-open portability is an artifact property, not an alternate workflow.
 
 Do not write a decorated diff summary. Explain the feature lifecycle from its
 main entry point, then progressively expose boundaries, execution paths,
@@ -142,11 +143,32 @@ The renderer:
 
 Keep the temporary rendering directory only through the ownership session so
 feedback can update the evidence model and rerender the same page. Remove it
-when the session or direct-browser fallback is complete.
+when the session is complete.
+
+## Lavish Ownership Session
+
+Open the rendered file through Lavish using its current unversioned CLI
+invocation with telemetry disabled:
+
+```bash
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <briefing-path>
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <briefing-path> \
+  --agent-reply "The briefing is ready; start with the orientation and flow."
+```
+
+If `npx -y` cannot run, use only the installed-copy invocations documented by
+`$lavish`. If none can start or resume the session, stop with the ownership
+phase blocked. Do not substitute a direct-open handoff or chat-only review.
+
+Keep each poll in the foreground. When a parent workflow invoked this skill,
+the main agent owns the foreground poll and forwards its result to this same
+briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
+Never invoke `lavish-axi share`; the implementation evidence remains local.
+Keep the server on loopback.
 
 ## Validate The Experience
 
-Open the HTML in a browser and verify:
+In the Lavish-served browser page, verify:
 
 - no console errors
 - the first render explains the feature without interaction
@@ -160,26 +182,7 @@ Open the HTML in a browser and verify:
 - `git status --short` matches its pre-render state
 
 Fix the skill output or evidence and rerender when validation fails.
-
-## Lavish Ownership Session
-
-After standalone browser validation succeeds, open the same file with the
-reviewed Lavish CLI and telemetry disabled:
-
-```bash
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 <briefing-path>
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43 poll <briefing-path> \
-  --agent-reply "The briefing is ready; start with the orientation and flow."
-```
-
-Keep each poll in the foreground. When a parent workflow invoked this skill,
-the main agent owns the foreground poll and forwards its result to this same
-briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
-Never invoke `lavish-axi share`; the implementation evidence remains local.
-Keep the server on loopback.
-
-Lavish wraps the rendered page without becoming part of it. Use its annotations
-and structured actions to distinguish:
+Use annotations and structured actions to distinguish:
 
 - an explanation gap: update the temporary evidence model and rerender the same
   HTML path
@@ -194,11 +197,9 @@ Poll again after each feedback batch. A timeout, interruption, or feedback
 response does not finish the loop. Stop when the user ends the session, and do
 not reopen a user-ended session without an explicit request.
 
-If the pinned CLI and its documented installed-copy fallbacks cannot run, use
-the direct-browser fallback: preserve all standalone validation, return the
-absolute page path, handle questions in chat, and record the unavailable
-Lavish capability. Lavish availability never weakens the briefing renderer or
-changes the single-file artifact boundary.
+Lavish owns the review loop without becoming part of the generated file. The
+single-file artifact boundary remains because it is the input Lavish serves and
+the local evidence artifact the worktree owns.
 
 ## Return
 
@@ -208,6 +209,6 @@ Report:
 - the work item and source snapshot
 - which flows and maintenance recipes it covers
 - browser and Git-status validation
-- Lavish ownership-session or direct-browser fallback outcome
+- Lavish ownership-session outcome
 - any evidence gaps or reconstruction blocker
 - that the artifact is local-only and disappears with its worktree

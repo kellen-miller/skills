@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LAVISH_CLI = "LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi@0.1.43"
+LAVISH_CLI = "LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi"
 
 
 def read_repo_file(path: str) -> str:
@@ -237,18 +237,24 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         )
         self.assertLess(review_offset, adversarial_offset)
 
-    def test_lavish_contract_is_local_pinned_and_has_direct_fallback(self):
+    def test_lavish_contract_is_required_and_tracks_upstream_cli(self):
+        normalized_skill = " ".join(self.skill.split())
         for phrase in (
             LAVISH_CLI,
             "loopback",
             "Never invoke `lavish-axi share`",
             "no remote CDN or sidecar assets",
-            "direct-browser fallback",
+            "Lavish is required",
+            "stop the current phase as blocked",
             "main agent owns every Lavish foreground poll",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.skill)
+                self.assertIn(phrase, normalized_skill)
 
+        self.assertNotIn("lavish-axi@", self.skill)
+        self.assertNotIn("direct-browser fallback", self.skill)
+        self.assertNotIn("or from the user in chat", self.skill)
+        self.assertNotIn("collect the same explicit approval in chat", self.skill)
         self.assertNotIn("npx -y lavish-axi share", self.skill)
 
 
@@ -298,20 +304,23 @@ class ExplainImplementationPolicyTest(unittest.TestCase):
                 self.assertTrue((ROOT / path).is_file())
         self.assertIn("$explain-implementation", self.metadata)
 
-    def test_lavish_wraps_the_briefing_without_replacing_the_renderer(self):
+    def test_renderer_produces_the_required_lavish_artifact(self):
+        normalized_skill = " ".join(self.skill.split())
         for phrase in (
             LAVISH_CLI,
-            "Lavish wraps the rendered page",
-            "standalone HTML remains authoritative",
+            "renderer produces the source HTML",
+            "Lavish is the required review and ownership interface",
             "single-file artifact boundary",
             "foreground poll",
-            "direct-browser fallback",
+            "stop with the ownership phase blocked",
             "Never invoke `lavish-axi share`",
             "user ends the session",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.skill)
+                self.assertIn(phrase, normalized_skill)
 
+        self.assertNotIn("lavish-axi@", self.skill)
+        self.assertNotIn("direct-browser fallback", self.skill)
         self.assertLess(
             self.skill.index("python3 scripts/render_briefing.py"),
             self.skill.index(f"{LAVISH_CLI} <briefing-path>"),
