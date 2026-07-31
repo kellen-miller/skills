@@ -220,17 +220,20 @@ cross-provider capacity blocks acceptance or requires explicit user waiver.
 Express profiles by capability and map them to concrete models only when the
 runtime supports model selection:
 
-- main orchestrator: user-selected capable model, medium reasoning; high only
-  for difficult routing or synthesis
-- grill agent: balanced repository-capable model, medium reasoning
-- planning agent: strong design and coding model, high reasoning
-- implementation agent: strong coding model, medium reasoning; high for a
-  concretely difficult slice
-- closeout reviewer: balanced model in a fresh context, medium reasoning
-- independent reviewer: suitable different-provider model when available,
-  medium reasoning; high for critical work
-- briefing agent: balanced repository-capable model in a fresh context, medium
-  reasoning
+- main orchestrator: user-selected capable model with reasoning appropriate to
+  the routing and synthesis complexity
+- grill agent: balanced repository-capable model with reasoning appropriate to
+  the ambiguity and decision depth
+- planning agent: strong design and coding model with reasoning appropriate to
+  the architectural breadth, uncertainty, and proof burden
+- implementation agent: strong coding model with reasoning selected for the
+  current implementation slice
+- closeout reviewer: balanced model in a fresh context with reasoning selected
+  for the change breadth and review difficulty
+- independent reviewer: suitable different-provider model when available, with
+  reasoning selected for the risk and difficulty of the review boundary
+- briefing agent: balanced repository-capable model in a fresh context with
+  reasoning appropriate to the implementation's explanatory complexity
 
 For every supported phase launch, explicitly set both `model` and
 `reasoning_effort` to the concrete values selected from these profiles. Do not
@@ -241,8 +244,13 @@ selected capability was available. If the runtime cannot set an override,
 record the actual inherited value when observable and name the unavailable
 capability and chosen fallback.
 
-Do not prescribe `xhigh` or `max` as a default. Escalate only for concrete
-risk, uncertainty, or repeated failed attempts.
+Let the phase-launching model select any supported reasoning effort it judges
+appropriate from phase-local evidence. `xhigh` and `max` are valid choices when
+the model judges that complexity, ambiguity, interacting constraints, risk, or
+proof difficulty warrants them; they do not require a prior failed attempt.
+Do not impose a global ceiling or mechanically derive effort from the overall
+risk tier: a simple phase in critical work may need less reasoning, while an
+unusually difficult phase in standard work may justify the maximum.
 
 ## Lavish Review Contract
 

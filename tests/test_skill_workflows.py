@@ -150,8 +150,14 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         self.assertRegex(self.skill, r"not the orchestrator's\s+conclusions")
         self.assertIn("persistent grill and implementation agents", self.skill)
 
-    def test_reasoning_profiles_do_not_default_to_maximum(self):
-        self.assertIn("Do not prescribe `xhigh` or `max`", self.skill)
+    def test_reasoning_profiles_allow_model_selected_maximum(self):
+        self.assertIn(
+            "Let the phase-launching model select any supported reasoning effort",
+            self.skill,
+        )
+        self.assertIn("`xhigh` and `max` are valid choices", self.skill)
+        self.assertIn("they do not require a prior failed attempt", self.skill)
+        self.assertIn("Do not impose a global ceiling", self.skill)
 
     def test_phase_launches_set_and_record_actual_profiles(self):
         self.assertIn(
