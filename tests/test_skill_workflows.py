@@ -174,6 +174,14 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
                 self.assertIn(field, self.skill)
 
     def test_independent_review_has_provider_fallbacks(self):
+        self.assertRegex(
+            self.skill,
+            r"Absence from the\s+native subagent picker is not evidence",
+        )
+        self.assertIn(
+            "Do not launch a same-provider reviewer before completing",
+            self.skill,
+        )
         self.assertIn(
             "fresh isolated session from the same provider",
             self.skill,
@@ -342,6 +350,15 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
         self.assertIn("different provider", self.skill)
         self.assertIn("fresh isolated session from the same provider", self.skill)
         self.assertIn("reduced independence", self.skill)
+        self.assertIn("Cross-provider review is the default requirement", self.skill)
+        self.assertRegex(
+            self.skill,
+            r"Absence from the native subagent\s+picker does not establish",
+        )
+        self.assertIn(
+            "Do not launch a same-provider reviewer before completing",
+            self.skill,
+        )
 
     def test_runs_one_reviewer_without_nested_competition(self):
         self.assertIn("Run one fresh reviewer", self.skill)
@@ -382,6 +399,15 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
     def test_provider_recipes_are_bundled(self):
         path = ROOT / "adversarial-review/references/provider-reviewers.md"
         self.assertTrue(path.is_file())
+
+    def test_external_adapters_are_discovered_before_fallback(self):
+        adapters = read_repo_file(
+            "adversarial-review/references/provider-reviewers.md"
+        )
+        self.assertIn("Read this reference during reviewer discovery", adapters)
+        self.assertIn("`command -v claude`", adapters)
+        self.assertIn("minimal read-only smoke", adapters)
+        self.assertIn("Native-picker absence alone never permits fallback", adapters)
 
     def test_anthropic_adapter_preserves_access_and_profile(self):
         adapter = read_repo_file("adversarial-review/references/provider-reviewers.md")

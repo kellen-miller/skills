@@ -203,12 +203,24 @@ Use this ordered selection contract for each planning-boundary and
 implementation-boundary adversarial review, including the fallback path:
 
 1. Identify the authoring provider when the runtime exposes it.
-2. Discover suitable read-only review mechanisms available in the current
-   environment and prefer a suitable different-provider reviewer.
-3. Otherwise use a fresh isolated session from the same provider.
-4. If no isolated reviewer is available, use another fresh reviewer in the
+2. Inventory both native provider-aware reviewers and the external adapters in
+   `$adversarial-review`'s `references/provider-reviewers.md`. Absence from the
+   native subagent picker is not evidence that another provider is unavailable.
+3. Use a suitable different-provider reviewer whenever either mechanism makes
+   one available. Treat cross-provider review as the default requirement, not
+   a soft preference.
+4. Use a fresh isolated session from the same provider only after recording
+   that no suitable different-provider mechanism exists or that the available
+   mechanism failed its bounded availability check or review invocation.
+5. If no isolated reviewer is available, use another fresh reviewer in the
    current provider and record the reduced independence.
-5. Use the current authoring session only as a last resort.
+6. Use the current authoring session only as a last resort.
+
+Do not launch a same-provider reviewer before completing and recording the
+cross-provider inventory. If one is launched prematurely, stop it before it
+returns a completed boundary status and continue with the cross-provider path;
+an interrupted launch does not consume the boundary's one completed review
+event.
 
 Record the author provider, reviewer provider, model when known, independence
 level, evidence limitations, and the review severity and status fields in the
