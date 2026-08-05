@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+LAVISH_CLI = "LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi"
 
 
 def read_repo_file(path: str) -> str:
@@ -149,8 +150,14 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         self.assertRegex(self.skill, r"not the orchestrator's\s+conclusions")
         self.assertIn("persistent grill and implementation agents", self.skill)
 
-    def test_reasoning_profiles_do_not_default_to_maximum(self):
-        self.assertIn("Do not prescribe `xhigh` or `max`", self.skill)
+    def test_reasoning_profiles_allow_model_selected_maximum(self):
+        self.assertIn(
+            "Let the phase-launching model select any supported reasoning effort",
+            self.skill,
+        )
+        self.assertIn("`xhigh` and `max` are valid choices", self.skill)
+        self.assertIn("they do not require a prior failed attempt", self.skill)
+        self.assertIn("Do not impose a global ceiling", self.skill)
 
     def test_phase_launches_set_and_record_actual_profiles(self):
         self.assertIn(
@@ -167,6 +174,14 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
                 self.assertIn(field, self.skill)
 
     def test_independent_review_has_provider_fallbacks(self):
+        self.assertRegex(
+            self.skill,
+            r"Absence from the\s+native subagent picker is not evidence",
+        )
+        self.assertIn(
+            "Do not launch a same-provider reviewer before completing",
+            self.skill,
+        )
         self.assertIn(
             "fresh isolated session from the same provider",
             self.skill,
@@ -212,6 +227,49 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         )
         briefing_offset = self.skill.index("### Step 5: Human Implementation Briefing")
         self.assertLess(review_offset, briefing_offset)
+
+    def test_human_plan_review_precedes_planning_adversarial_review(self):
+        planning_section = self.skill.split("### Step 2: Planning Agent", 1)[1].split(
+            "### Step 3: Goal And Implementation Agent", 1
+        )[0]
+        for phrase in (
+            ".agent/work/<slug>/plan-review.html",
+            "`decision.md` and `execplan.md` remain authoritative",
+            "explicit plan approval",
+            "`plan-approval`",
+            "current plan revision",
+            "foreground poll",
+            "same planning agent",
+            "Never stage or commit the plan-review page",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, planning_section)
+
+        review_offset = planning_section.index("explicit plan approval")
+        adversarial_offset = planning_section.index(
+            "Run exactly one planning-boundary adversarial review"
+        )
+        self.assertLess(review_offset, adversarial_offset)
+
+    def test_lavish_contract_is_required_and_tracks_upstream_cli(self):
+        normalized_skill = " ".join(self.skill.split())
+        for phrase in (
+            LAVISH_CLI,
+            "loopback",
+            "Never invoke `lavish-axi share`",
+            "no remote CDN or sidecar assets",
+            "Lavish is required",
+            "stop the current phase as blocked",
+            "main agent owns every Lavish foreground poll",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, normalized_skill)
+
+        self.assertNotIn("lavish-axi@", self.skill)
+        self.assertNotIn("direct-browser fallback", self.skill)
+        self.assertNotIn("or from the user in chat", self.skill)
+        self.assertNotIn("collect the same explicit approval in chat", self.skill)
+        self.assertNotIn("npx -y lavish-axi share", self.skill)
 
 
 class ExplainImplementationPolicyTest(unittest.TestCase):
@@ -260,6 +318,28 @@ class ExplainImplementationPolicyTest(unittest.TestCase):
                 self.assertTrue((ROOT / path).is_file())
         self.assertIn("$explain-implementation", self.metadata)
 
+    def test_renderer_produces_the_required_lavish_artifact(self):
+        normalized_skill = " ".join(self.skill.split())
+        for phrase in (
+            LAVISH_CLI,
+            "renderer produces the source HTML",
+            "Lavish is the required review and ownership interface",
+            "single-file artifact boundary",
+            "foreground poll",
+            "stop with the ownership phase blocked",
+            "Never invoke `lavish-axi share`",
+            "user ends the session",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, normalized_skill)
+
+        self.assertNotIn("lavish-axi@", self.skill)
+        self.assertNotIn("direct-browser fallback", self.skill)
+        self.assertLess(
+            self.skill.index("python3 scripts/render_briefing.py"),
+            self.skill.index(f"{LAVISH_CLI} <briefing-path>"),
+        )
+
 
 class AdversarialReviewPolicyTest(unittest.TestCase):
     def setUp(self):
@@ -270,6 +350,15 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
         self.assertIn("different provider", self.skill)
         self.assertIn("fresh isolated session from the same provider", self.skill)
         self.assertIn("reduced independence", self.skill)
+        self.assertIn("Cross-provider review is the default requirement", self.skill)
+        self.assertRegex(
+            self.skill,
+            r"Absence from the native subagent\s+picker does not establish",
+        )
+        self.assertIn(
+            "Do not launch a same-provider reviewer before completing",
+            self.skill,
+        )
 
     def test_runs_one_reviewer_without_nested_competition(self):
         self.assertIn("Run one fresh reviewer", self.skill)
@@ -310,6 +399,15 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
     def test_provider_recipes_are_bundled(self):
         path = ROOT / "adversarial-review/references/provider-reviewers.md"
         self.assertTrue(path.is_file())
+
+    def test_external_adapters_are_discovered_before_fallback(self):
+        adapters = read_repo_file(
+            "adversarial-review/references/provider-reviewers.md"
+        )
+        self.assertIn("Read this reference during reviewer discovery", adapters)
+        self.assertIn("`command -v claude`", adapters)
+        self.assertIn("minimal read-only smoke", adapters)
+        self.assertIn("Native-picker absence alone never permits fallback", adapters)
 
     def test_anthropic_adapter_preserves_access_and_profile(self):
         adapter = read_repo_file("adversarial-review/references/provider-reviewers.md")

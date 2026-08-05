@@ -1,8 +1,23 @@
 # Provider Reviewer Adapters
 
-Read this reference only after the core skill has selected an independence
-class and needs an external reviewer mechanism. Prefer a native provider-aware
-subagent over a CLI when the runtime exposes one.
+Read this reference during reviewer discovery, before selecting a same-provider
+fallback. Prefer a native provider-aware subagent over a CLI when the runtime
+exposes one, but do not treat absence from the native subagent picker as proof
+that another provider is unavailable.
+
+## Availability Discovery
+
+Identify the author provider, inspect the native reviewer choices, and check
+whether the adapters documented below are installed, for example with
+`command -v claude` and `command -v codex`. When an installed different-provider
+adapter's authentication or health is uncertain, run a minimal read-only smoke
+prompt with a bounded timeout before falling back. Do not include repository
+artifacts in that smoke prompt.
+
+Record the mechanisms checked and their outcomes in the work item. A
+same-provider fallback is permitted only when no suitable different-provider
+mechanism is installed or an installed mechanism fails the bounded smoke check
+or review invocation. Native-picker absence alone never permits fallback.
 
 ## Common Contract
 

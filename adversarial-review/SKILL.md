@@ -11,10 +11,12 @@ description: >-
 
 ## Core Contract
 
-Run one fresh reviewer against a compact artifact packet. Prefer a reviewer
-from a different provider than the author. The reviewer finds serious risks;
-the calling agent verifies each claim against repository or runtime evidence
-before changing plans, code, or status.
+Run one fresh reviewer against a compact artifact packet. Use a reviewer from a
+different provider than the author whenever a suitable native or external
+mechanism is available. Cross-provider review is the default requirement, not
+a soft preference. The reviewer finds serious risks; the calling agent verifies
+each claim against repository or runtime evidence before changing plans, code,
+or status.
 
 One invocation evaluates one completed planning or implementation boundary. Run one fresh reviewer.
 Do not spawn nested reviewers by default. Critical risk may increase the
@@ -24,15 +26,26 @@ another invocation for the same boundary.
 ## Reviewer Selection
 
 1. Determine the author provider when exposed by the runtime.
-2. Discover native provider-aware subagents and installed reviewer mechanisms.
-3. Prefer a suitable reviewer from a different provider.
-4. Otherwise use a fresh isolated session from the same provider.
+2. Discover native provider-aware subagents, then read
+   `references/provider-reviewers.md` and inventory its installed external
+   adapters before selecting a fallback. Absence from the native subagent
+   picker does not establish that another provider is unavailable.
+3. Use a suitable reviewer from a different provider when either a native or
+   external mechanism is available.
+4. Use a fresh isolated session from the same provider only after recording
+   that no suitable different-provider mechanism exists or that an available
+   mechanism failed its bounded availability check or review invocation.
 5. Otherwise use another fresh reviewer available in the current provider and
    record reduced independence.
 6. Use the current authoring session only as a last resort.
 
-Read `references/provider-reviewers.md` only when an external adapter is
-needed. Record unavailable evidence or provider capacity. Missing cross-provider
+Do not launch a same-provider reviewer before completing and recording the
+cross-provider inventory. If one is launched prematurely, stop it before it
+returns a completed boundary status and continue with the cross-provider path;
+an interrupted launch does not consume the boundary's one completed review
+event.
+
+Record unavailable evidence or provider capacity. Missing cross-provider
 capacity is not automatically blocking for standard or elevated work; the
 caller decides whether critical work requires a waiver.
 

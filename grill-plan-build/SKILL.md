@@ -33,6 +33,7 @@ This skill orchestrates these skills when available:
 - `$review-recent-work`
 - `$adversarial-review`
 - `$explain-implementation`
+- `$lavish`
 - `$using-git-worktrees`
 
 It may also use these skills as phase-specific lenses when they fit:
@@ -61,11 +62,12 @@ Every `$skill` reference resolves in this order:
    Match by the target's frontmatter `name`, not by directory name alone.
 3. Resolve any paths a sub-skill references against that sub-skill's own
    directory, and inherit its declared tool and write constraints.
-4. If no matching `SKILL.md` exists, treat the lens as unavailable, continue the
-   core workflow, and note the skipped lens in the final output. The human
-   briefing is a required finalization artifact: if `$explain-implementation`
-   and its renderer are unavailable, stop with that blocker instead of claiming
-   the workflow completed.
+4. If no matching `SKILL.md` exists, treat an optional lens as unavailable,
+   continue the core workflow, and note the skipped lens in the final output.
+   `$lavish` and the human briefing are required phase dependencies. If
+   `$lavish`, `$explain-implementation`, or its renderer is unavailable, stop
+   the affected phase with that blocker instead of substituting another review
+   surface or claiming the workflow completed.
 
 When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
 the launch packet and require the subagent to read and execute it in its fresh
@@ -112,9 +114,10 @@ Use the smallest set of supporting skills that improves the work.
 - Worktree guard: invoke `$using-git-worktrees` before creating `.agent/work`
   artifacts or mutating repository files.
 
-Do not invoke supporting lenses just because they are installed. If a lens is
-unavailable, continue with the core workflow and note the skipped lens in the
-final output.
+Do not invoke supporting lenses just because they are installed. If an optional
+lens is unavailable, continue with the core workflow and note the skipped lens
+in the final output. This does not apply to the required `$lavish` plan-review
+and implementation-ownership sessions.
 
 ## Orchestrator Contract
 
@@ -158,12 +161,15 @@ Use these phase agents when subagents are available:
 - one fresh closeout reviewer invoking exactly one normal review skill
 - one fresh planning adversarial reviewer invoking `$adversarial-review`
 - one fresh implementation adversarial reviewer invoking `$adversarial-review`
-- one fresh briefing agent invoking `$explain-implementation`
+- one fresh briefing agent invoking `$explain-implementation`, retained through
+  the human ownership session
 
-Reuse the grill agent across user answers and the implementation agent across
-milestones. Always use fresh planning, review, and briefing contexts. Only one
-mutating agent operates in the worktree at a time unless the main agent has
-explicit disjoint paths and an integration plan.
+Reuse the grill agent across user answers, the same planning agent across human
+plan-review feedback, and the implementation agent across milestones. Always
+launch planning, review, and briefing contexts fresh; retaining a fresh author
+inside its own bounded review loop does not give it inherited orchestration
+context. Only one mutating agent operates in the worktree at a time unless the
+main agent has explicit disjoint paths and an integration plan.
 
 If subagents are unavailable, the main agent may invoke the phase skill itself
 and must record that context isolation was unavailable.
@@ -197,12 +203,24 @@ Use this ordered selection contract for each planning-boundary and
 implementation-boundary adversarial review, including the fallback path:
 
 1. Identify the authoring provider when the runtime exposes it.
-2. Discover suitable read-only review mechanisms available in the current
-   environment and prefer a suitable different-provider reviewer.
-3. Otherwise use a fresh isolated session from the same provider.
-4. If no isolated reviewer is available, use another fresh reviewer in the
+2. Inventory both native provider-aware reviewers and the external adapters in
+   `$adversarial-review`'s `references/provider-reviewers.md`. Absence from the
+   native subagent picker is not evidence that another provider is unavailable.
+3. Use a suitable different-provider reviewer whenever either mechanism makes
+   one available. Treat cross-provider review as the default requirement, not
+   a soft preference.
+4. Use a fresh isolated session from the same provider only after recording
+   that no suitable different-provider mechanism exists or that the available
+   mechanism failed its bounded availability check or review invocation.
+5. If no isolated reviewer is available, use another fresh reviewer in the
    current provider and record the reduced independence.
-5. Use the current authoring session only as a last resort.
+6. Use the current authoring session only as a last resort.
+
+Do not launch a same-provider reviewer before completing and recording the
+cross-provider inventory. If one is launched prematurely, stop it before it
+returns a completed boundary status and continue with the cross-provider path;
+an interrupted launch does not consume the boundary's one completed review
+event.
 
 Record the author provider, reviewer provider, model when known, independence
 level, evidence limitations, and the review severity and status fields in the
@@ -214,17 +232,20 @@ cross-provider capacity blocks acceptance or requires explicit user waiver.
 Express profiles by capability and map them to concrete models only when the
 runtime supports model selection:
 
-- main orchestrator: user-selected capable model, medium reasoning; high only
-  for difficult routing or synthesis
-- grill agent: balanced repository-capable model, medium reasoning
-- planning agent: strong design and coding model, high reasoning
-- implementation agent: strong coding model, medium reasoning; high for a
-  concretely difficult slice
-- closeout reviewer: balanced model in a fresh context, medium reasoning
-- independent reviewer: suitable different-provider model when available,
-  medium reasoning; high for critical work
-- briefing agent: balanced repository-capable model in a fresh context, medium
-  reasoning
+- main orchestrator: user-selected capable model with reasoning appropriate to
+  the routing and synthesis complexity
+- grill agent: balanced repository-capable model with reasoning appropriate to
+  the ambiguity and decision depth
+- planning agent: strong design and coding model with reasoning appropriate to
+  the architectural breadth, uncertainty, and proof burden
+- implementation agent: strong coding model with reasoning selected for the
+  current implementation slice
+- closeout reviewer: balanced model in a fresh context with reasoning selected
+  for the change breadth and review difficulty
+- independent reviewer: suitable different-provider model when available, with
+  reasoning selected for the risk and difficulty of the review boundary
+- briefing agent: balanced repository-capable model in a fresh context with
+  reasoning appropriate to the implementation's explanatory complexity
 
 For every supported phase launch, explicitly set both `model` and
 `reasoning_effort` to the concrete values selected from these profiles. Do not
@@ -235,8 +256,46 @@ selected capability was available. If the runtime cannot set an override,
 record the actual inherited value when observable and name the unavailable
 capability and chosen fallback.
 
-Do not prescribe `xhigh` or `max` as a default. Escalate only for concrete
-risk, uncertainty, or repeated failed attempts.
+Let the phase-launching model select any supported reasoning effort it judges
+appropriate from phase-local evidence. `xhigh` and `max` are valid choices when
+the model judges that complexity, ambiguity, interacting constraints, risk, or
+proof difficulty warrants them; they do not require a prior failed attempt.
+Do not impose a global ceiling or mechanically derive effort from the overall
+risk tier: a simple phase in critical work may need less reasoning, while an
+unusually difficult phase in standard work may justify the maximum.
+
+## Lavish Review Contract
+
+Lavish is required for the human plan-review and implementation-ownership
+phases. The phase author produces the local source HTML that Lavish serves,
+annotates, and uses for structured feedback. Lavish does not replace
+`decision.md`, `execplan.md`, implementation source, review evidence, or the
+deterministic implementation-briefing renderer.
+
+Follow `$lavish`'s current invocation guidance without pinning a CLI version.
+Disable telemetry for this local workflow:
+
+```bash
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <html-path>
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <html-path> \
+  --agent-reply "<what changed or what to review>"
+LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi end <html-path>
+```
+
+If `npx -y` cannot run, use only the installed-copy invocations documented by
+`$lavish`. If none can start or resume a Lavish session, stop the current phase
+as blocked. Do not substitute direct-open HTML, chat-only approval, or another
+feedback surface.
+
+Every projection stays self-contained with no remote CDN or sidecar assets;
+prefer inline SVG when a diagram would otherwise require a browser runtime.
+Keep the server on its default loopback binding. Never invoke `lavish-axi share`;
+plans and implementation evidence remain local. The main agent owns every Lavish foreground poll
+and forwards returned feedback to the phase author. Do not hide a poll behind
+`&`, `nohup`, an unobserved PTY, or another mechanism that cannot resume the
+main agent. A poll timeout, interruption, layout warning, or feedback batch is
+not session completion; follow its `next_step` and poll again. Lavish session
+state is tool state, not a work item artifact.
 
 ## Workflow
 
@@ -307,11 +366,13 @@ and grill only unresolved delivery concerns.
 
 ### Step 2: Planning Agent
 
-Spawn one fresh planning agent with the completed decision ledger. Tell it to
-invoke `$grillcraft` in planning-only and no-activation mode with exactly one
+Spawn one fresh planning agent with the completed decision ledger. Retain this
+same planning agent through the human plan-review loop. Tell it to invoke
+`$grillcraft` in planning-only and no-activation mode with exactly one
 `$execplan-improve` attempt for standard or elevated work, or up to two for
-critical work. It writes `decision.md`, `meta.json`, and `execplan.md` in the
-selected worktree. Lenses do not create review checkpoints.
+critical work. It writes `decision.md`, `meta.json`, `execplan.md`, and one
+local plan projection in the selected worktree. Lenses and the human plan
+review do not create adversarial-review events.
 
 The result must be a work item:
 
@@ -320,11 +381,13 @@ The result must be a work item:
   decision.md
   meta.json
   execplan.md
+  plan-review.html
 ```
 
 `decision.md` is the intent and provenance record. `execplan.md` is the
 executable implementation contract. `meta.json` is the lifecycle source of
-truth.
+truth. `decision.md` and `execplan.md` remain authoritative;
+`plan-review.html` is a review projection of those files.
 
 When entering from a completed Wayfinder map, add a `Wayfinder provenance`
 section to `decision.md` with the map title, URL, and relevant resolved tickets.
@@ -351,15 +414,39 @@ During improvement, check for shallow wrappers, leaked policy, premature seams,
 internal-only tests, speculative abstractions, unjustified compatibility code,
 and incomplete frontend design states.
 
-Accept the phase only when the artifacts preserve confirmed decisions, contain
-observable validation, and leave `meta.json` at `stage="plan"` and
-`state="completed"`. Run exactly one planning-boundary adversarial review after planning is complete,
+After improvement, tell the planning agent to invoke `$lavish` guidance and
+create a self-contained `.agent/work/<slug>/plan-review.html`. It must make the
+goal, scope, current and target shapes, component or execution flow, milestones,
+decisions and tradeoffs, risk, rollout, rollback, and validation easy to
+inspect. Use the `plan`, `diagram`, `comparison`, and `input` playbooks when
+their triggers match. Include a content fingerprint of `decision.md` and
+`execplan.md`. The explicit approval control queues exactly one prompt tagged
+`plan-approval` with that current plan revision; selection state is not
+approval.
+
+Require the page to be ignored by Git and verify rendering leaves Git status
+unchanged. Never stage or commit the plan-review page. The main agent opens the
+page under the Lavish Review Contract, starts its foreground poll, and forwards
+annotations and structured answers to the same planning agent. That agent
+updates the authoritative artifacts first and then rerenders the same HTML path
+so the session live-reloads.
+
+Do not infer approval from opening the page, choosing an option, ending the
+session, chat messages, or silence. Require the page's submitted
+`plan-approval` action matching the current plan revision. Record the Lavish
+session, approved revision, and outcome in `meta.json`.
+
+Accept the phase only when the authoritative artifacts preserve confirmed
+decisions, contain observable validation, leave `meta.json` at `stage="plan"`
+and `state="completed"`, and have explicit plan approval. Run exactly one planning-boundary adversarial review after planning is complete,
 using the Independent Reviewer Selection contract. If frontend work is in
 scope, its frontend-specific packet consumes this event. Verify each finding,
 fix or disposition valid findings, update the planning artifacts when needed,
 and rerun relevant validation. Never re-invoke the adversarial reviewer for that boundary,
-including after critical or high findings. The planning agent never activates
-a Goal.
+including after critical or high findings. If a verified finding changes
+user-approved intent, rerender the plan and obtain approval for that material
+change without creating another adversarial-review event. The planning agent
+never activates a Goal.
 
 ### Step 3: Goal And Implementation Agent
 
@@ -435,8 +522,14 @@ The briefing agent writes only:
 
 Require that path to be ignored by Git. Never stage or commit it. Accept the
 phase only when browser validation proves the component map, execution trace,
-retrieval feedback, source links, keyboard behavior, and responsive layout work
-and `git status --short` is unchanged.
+retrieval feedback, source links or Lavish copy-path controls, keyboard
+behavior, and responsive layout work and `git status --short` is unchanged.
+
+The main agent then opens the rendered page under the Lavish Review Contract
+and owns the foreground poll. Forward annotations to the same briefing agent.
+For explanation gaps, the briefing agent updates its evidence model and
+rerenders the same path. A user-ended session completes the ownership loop; do
+not infer comprehension or reopen it uninvited.
 
 This phase transfers context; it is not another review event. If reconstruction
 exposes a material contradiction, route the fix to the persistent
@@ -461,18 +554,21 @@ default, and fixed review lifecycle itself:
    `stage="decision"` and `state="completed"`
 4. `$execplan-create`, followed by exactly one `$execplan-improve` attempt for
    standard or elevated work, or up to two for critical work
-5. Perform exactly one planning-boundary adversarial review, fix or disposition
+5. Create and review the ignored `plan-review.html`, apply feedback to the
+   authoritative artifacts, and obtain explicit plan approval
+6. Perform exactly one planning-boundary adversarial review, fix or disposition
    verified findings, rerun relevant validation, and do not invoke it again
-6. The main agent invokes `$goalcraft`, then `$implement-execplan` using the
+7. The main agent invokes `$goalcraft`, then `$implement-execplan` using the
    Step 3 lifecycle contract
-7. Perform exactly one closeout review with `$review-recent-work` or
+8. Perform exactly one closeout review with `$review-recent-work` or
    `$code-review`, fix or disposition verified findings, and rerun relevant
    validation
-8. Perform exactly one implementation-boundary adversarial review, fix or
+9. Perform exactly one implementation-boundary adversarial review, fix or
    disposition verified findings, rerun relevant validation, and finalize
    without invoking it again
-9. Invoke `$explain-implementation` for the explicit work item, browser-validate
-   the ignored local briefing, and verify Git status is unchanged
+10. Invoke `$explain-implementation` for the explicit work item, validate the
+    ignored local briefing through Lavish, complete its ownership loop, and
+    verify Git status is unchanged
 
 If `/goal` is unavailable in the current Codex surface, use
 `$implement-execplan` instead of `$goalcraft` and record the limitation.
@@ -490,6 +586,7 @@ Return:
 - worktree path, branch, base ref, and upstream/tracking state
 - work item path
 - artifacts created or updated
+- plan-review path, Lavish session, explicit approval, and feedback disposition
 - supporting lenses used or skipped
 - normal closeout and both adversarial-review artifacts and outcomes
 - absolute local implementation-briefing path and browser-validation outcome

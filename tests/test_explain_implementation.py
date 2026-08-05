@@ -11,7 +11,7 @@ RENDERER = ROOT / "explain-implementation" / "scripts" / "render_briefing.py"
 def briefing_payload():
     source = {"path": "src/orders.py", "symbol": "place_order", "line": 1}
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "title": "Order placement",
         "summary": "Places an order after reserving inventory.",
         "snapshot": {
@@ -25,6 +25,7 @@ def briefing_payload():
             "entry_point": source,
             "concepts": [
                 {
+                    "id": "reservation",
                     "name": "Reservation",
                     "explanation": "A temporary inventory claim.",
                 }
@@ -48,6 +49,7 @@ def briefing_payload():
                 "summary": "Reservation precedes persistence.",
                 "steps": [
                     {
+                        "id": "place-order",
                         "component": "service",
                         "title": "Place the order",
                         "detail": "The service performs side effects in order.",
@@ -58,6 +60,7 @@ def briefing_payload():
         ],
         "decisions": [
             {
+                "id": "service-ownership",
                 "title": "One executor",
                 "choice": "Service ownership",
                 "reason": "Ordering is a business invariant.",
@@ -67,6 +70,7 @@ def briefing_payload():
         ],
         "change_recipes": [
             {
+                "id": "change-validation",
                 "goal": "Change order validation",
                 "start_here": source,
                 "steps": ["Edit the entry boundary."],
@@ -76,6 +80,7 @@ def briefing_payload():
         ],
         "verification": [
             {
+                "id": "reservation-first",
                 "behavior": "Reservation happens first",
                 "tests": [source],
                 "commands": ["python -m unittest"],
@@ -84,6 +89,7 @@ def briefing_payload():
         ],
         "questions": [
             {
+                "id": "ordering-owner",
                 "prompt": "Which component owns ordering?",
                 "choices": ["Order service", "Caller"],
                 "answer": 0,
@@ -94,6 +100,7 @@ def briefing_payload():
         "risks": [],
         "glossary": [
             {
+                "id": "reservation",
                 "term": "Reservation",
                 "definition": "A temporary inventory claim.",
             }
@@ -181,6 +188,17 @@ class RenderBriefingTest(unittest.TestCase):
         self.assertIn('"tree_state":"clean"', html)
         self.assertNotIn("__IMPLEMENTATION_BRIEFING_DATA__", html)
         self.assertNotIn("https://", html)
+        self.assertIn("node.id = `${kind}-${id}`", html)
+        self.assertIn("node.dataset.briefingKind = kind", html)
+        self.assertIn("node.dataset.briefingId = id", html)
+        self.assertIn('"id":"service-ownership"', html)
+        self.assertIn('"id":"ordering-owner"', html)
+        self.assertIn("window.lavish.queuePrompt", html)
+        self.assertIn("lavish-active", html)
+        self.assertIn("Copy path", html)
+        self.assertIn("source-copy-value", html)
+        self.assertIn("copyValue.select()", html)
+        self.assertIn("file://${root}/${source.path}", html)
         self.assertEqual(
             subprocess.check_output(
                 ["git", "status", "--short", "--untracked-files=all"],
@@ -218,4 +236,18 @@ class RenderBriefingTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("source path does not exist: src/missing.py", result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_rejects_invalid_stable_ids(self):
+        payload = briefing_payload()
+        payload["decisions"][0]["id"] = "Service Ownership"
+        self.input.write_text(json.dumps(payload), encoding="utf-8")
+
+        result = self.render()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "decisions[0].id must be a stable lowercase id",
+            result.stderr,
+        )
         self.assertFalse(self.output.exists())
