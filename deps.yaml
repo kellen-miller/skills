@@ -85,4 +85,4 @@ dependencies:
         - {source: skills/productivity/grilling, destination: grilling}
         - {source: skills/productivity/handoff, destination: handoff}
         - {source: skills/productivity/teach, destination: teach}
-        - {source: skills/productivity/writing-great-skills, destination: writing-great-skills}
+        - {source: skills/productivity/writing-for-agents, destination: writing-great-skills}
