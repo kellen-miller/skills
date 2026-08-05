@@ -85,7 +85,7 @@ dependencies:
         - {source: skills/productivity/grilling, destination: grilling}
         - {source: skills/productivity/handoff, destination: handoff}
         - {source: skills/productivity/teach, destination: teach}
-        - {source: skills/productivity/for-agents, destination: writing-for-agents}
+        - {source: skills/productivity/writing-for-agents, destination: writing-for-agents}
   - id: lavish-axi
     url: https://github.com/kunchenguid/lavish-axi.git
     sparse: [skills/lavish]
