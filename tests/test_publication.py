@@ -68,6 +68,16 @@ class PublicationPolicyTest(unittest.TestCase):
                 self.assertNotIn("__pycache__", path)
                 self.assertFalse(path.endswith((".pyc", ".pyo")))
 
+    def test_readme_has_flat_skill_metadata(self):
+        content = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertTrue(content.startswith("---\n"))
+
+        _, frontmatter, _ = content.split("---", 2)
+        metadata = yaml.safe_load(frontmatter)
+
+        self.assertRegex(metadata["name"], r"^[a-z0-9-]+$")
+        self.assertTrue(metadata["description"].startswith("Use when "))
+
     def test_manifest_has_only_reviewed_public_dependencies(self):
         manifest = yaml.safe_load((ROOT / "deps.yaml").read_text(encoding="utf-8"))
         dependencies = manifest["dependencies"]
