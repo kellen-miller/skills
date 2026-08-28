@@ -132,6 +132,43 @@ lens is unavailable, continue with the core workflow and note the skipped lens
 in the final output. This does not apply to the required `$lavish` plan-review
 and implementation-ownership sessions.
 
+## ADR Promotion And Lifecycle Contract
+
+Read applicable repository ADRs before grilling or planning. Honor the
+repository's existing ADR directory, naming, numbering, and content convention.
+If none exists, use `docs/adr/NNNN-descriptive-outcome.md`, with the next
+four-digit number allocated from the current base revision.
+
+Promote a decision to an ADR only when all three conditions hold:
+
+- it has durable architectural impact
+- it involves a non-obvious, real trade-off
+- its rationale will matter beyond the current work item
+
+Keep nonqualifying reasoning in `decision.md` or the ExecPlan Decision Log and
+record that ADR promotion was intentionally skipped. For qualifying decisions,
+use `$grill-with-docs` and `$domain-modeling`; do not create another ADR owner.
+The ADR records context, decision drivers, serious options, the decision, and
+consequences. Link the work item instead of copying delivery steps from the
+ExecPlan.
+
+Create qualifying ADRs as `proposed`. Keep them proposed through explicit plan
+approval, the planning-boundary adversarial review, disposition of its findings,
+and any required reapproval. Accept them after that boundary unless explicit
+repository policy defers acceptance to pull-request approval or merge. If an
+ADR number collides before integration, renumber proposed records only; never
+renumber accepted or rejected history.
+
+Accepted and rejected rationale is append-only except for narrow metadata or
+link corrections. Replace an accepted decision with a new proposed ADR; once
+accepted, add reciprocal `supersedes` and `superseded by` links. Keep rejected
+records as history. Do not backfill decisions by default; a retrospective ADR
+must identify itself as retrospective and cite contemporaneous evidence.
+
+Applicable accepted ADRs constrain planning, implementation, review, and the
+implementation briefing. Route conflicts or discoveries that would change an
+accepted decision through the main agent before changing intent.
+
 ## Orchestrator Contract
 
 The main agent is the durable orchestrator and user-facing owner. It owns the
@@ -381,6 +418,10 @@ confirmed decisions, open decisions, assumptions, risks, validation, rollout,
 and rollback. The main agent asks the user and forwards answers to the same
 agent. Do not implement during this phase.
 
+First read applicable ADRs and report conflicts. Apply the ADR Promotion And
+Lifecycle Contract to each durable decision; a docs-backed grill may draft only
+qualifying records, with status `proposed`.
+
 When entering from a completed Wayfinder map, load the destination, `Decisions
 so far`, `Not yet specified`, and `Out of scope` sections. Read linked
 resolution tickets on demand, preserve settled decisions and scope boundaries,
@@ -431,6 +472,13 @@ Record `"wayfinder_map_url"` and `"wayfinder_state": "completed"` in
   screenshots, or written browser observations when useful
 - compatibility intentionally not preserved, when old behavior or names are
   removed
+
+Record each applicable ADR path and status, or the reason promotion was
+skipped. Keep proposed ADRs aligned with approved intent without copying the
+delivery plan, and expose them in the plan review. After explicit plan approval,
+the planning adversarial review, findings disposition, and any required
+reapproval are complete, perform the acceptance transition defined by the ADR
+Promotion And Lifecycle Contract.
 
 During improvement, check for shallow wrappers, leaked policy, premature seams,
 internal-only tests, speculative abstractions, unjustified compatibility code,
@@ -483,6 +531,9 @@ blockers, and sets completed state only after planned implementation and
 validation succeed. Route material discoveries through the main agent before
 changing intent.
 
+Before coding, read applicable accepted ADRs and treat them as implementation
+constraints. A conflict is a decision change, not an implementation detail.
+
 Before coding, set:
 
 ```json
@@ -515,9 +566,10 @@ implementation adversarial reviewer.
 Run exactly one implementation-boundary adversarial review after implementation and normal closeout are complete,
 using the Independent Reviewer Selection contract. Review against
 `decision.md`, `execplan.md`, worktree and branch state, `git status --short`,
-`git diff`, relevant tests, adjacent code paths, and rendered evidence when UI
-changed. If frontend work is in scope, its frontend-specific packet consumes
-this event and does not add another generic adversarial review.
+`git diff`, applicable accepted ADRs, relevant tests, adjacent code paths, and
+rendered evidence when UI changed. If frontend work is in scope, its
+frontend-specific packet consumes this event and does not add another generic
+adversarial review.
 
 Fix or disposition its verified findings, rerun relevant validation, and finalize
 through the persistent implementation agent. Never re-invoke the adversarial reviewer for that boundary,
@@ -532,9 +584,9 @@ spawn one fresh briefing agent with `fork_turns: "none"` and tell it to invoke
 `$explain-implementation` for the explicit work-item path.
 
 Give it raw final evidence: `decision.md`, `execplan.md`, `meta.json`, the final
-diff or commit, source and tests, validation output, review findings and
-dispositions, and rendered evidence when UI changed. Do not give it the
-implementation agent's conversational explanation.
+diff or commit, applicable accepted ADRs, source and tests, validation output,
+review findings and dispositions, and rendered evidence when UI changed. Do not
+give it the implementation agent's conversational explanation.
 
 The briefing agent writes only:
 
@@ -596,7 +648,8 @@ If `/goal` is unavailable in the current Codex surface, use
 `$implement-execplan` instead of `$goalcraft` and record the limitation.
 
 Record that context isolation was unavailable and retain all phase-gate and
-review evidence in the work item.
+review evidence in the work item. Apply the ADR Promotion And Lifecycle Contract
+at the same phase boundaries as the normal path.
 
 ## Output
 
@@ -608,6 +661,8 @@ Return:
 - worktree path, branch, base ref, and upstream/tracking state
 - work item path
 - artifacts created or updated
+- applicable ADRs, records created or intentionally skipped, lifecycle status,
+  and any supersession
 - plan-review path, Lavish session, explicit approval, and feedback disposition
 - supporting lenses used or skipped
 - normal closeout and both adversarial-review artifacts and outcomes
