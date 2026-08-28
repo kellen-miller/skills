@@ -44,7 +44,6 @@ It may also use these skills as phase-specific lenses when they fit:
 - `$tdd`
 - `$code-review`
 - `$frontend-design`
-- `$ai-coding-patterns`
 
 `$wayfinder` is a user-invoked on-ramp, not an orchestrated sub-skill or a
 phase-specific lens. Hand work to it only through the effort-shape gate below.
@@ -104,18 +103,6 @@ Use the smallest set of supporting skills that improves the work.
   materially affects the result. At each adversarial boundary, a
   frontend-specific packet consumes that boundary's one event instead of
   adding another generic adversarial review.
-- AI coding patterns lens: when the user explicitly invokes
-  `$ai-coding-patterns`, resolve and use it throughout this workflow as a
-  content lens; `$grill-plan-build` remains the only workflow owner. Give the
-  grill phase its contract questions and evaluation criteria, the planning
-  phase its matching pattern, closest alternative, invariants, complexity,
-  counterexamples, and test matrix, and the implementation and review phases
-  its AI-direction, failure-mode, incremental-verification, and progress-
-  explanation guidance. Give the implementation briefing the selected pattern,
-  human-owned decisions, rejected alternative, complexity, evidence, and
-  remaining risk. Preserve the user's nouns for the task and use ordinary
-  feature, planning, implementation, review, and verification language in
-  commentary, phase packets, artifacts, reviews, and briefings.
 - TDD lens: use `$tdd` during implementation slices when behavior can be
   verified at an agreed seam.
 - Formal review: use `$code-review` only when there is both a fixed point such
@@ -196,15 +183,6 @@ applicable lenses, allowed mutations, required output/status contract, and raw
 decision ledger, diffs, validation output, or other evidence. It must not
 include prior conversational reasoning except where that reasoning is itself a
 durable raw artifact the agent must evaluate.
-
-When the AI coding patterns lens applies, include the resolved absolute
-`ai-coding-patterns/SKILL.md` path in every phase-agent packet and require the
-agent to read it, then load only the references that skill routes for its
-phase. Record the lens in the work item so later fresh review and briefing
-contexts receive the same AI coding context. Persist only the derived pattern
-choice, human-owned decisions, AI task boundaries, observed corrections,
-progress-explanation checkpoints, and validation evidence; do not copy the
-private course references or their source framing into the target repository.
 
 Keep the persistent grill and implementation agents on their existing contexts:
 the grill agent carries user decisions across questions and the implementation
