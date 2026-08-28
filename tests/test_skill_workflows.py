@@ -401,9 +401,7 @@ class AdversarialReviewPolicyTest(unittest.TestCase):
         self.assertTrue(path.is_file())
 
     def test_external_adapters_are_discovered_before_fallback(self):
-        adapters = read_repo_file(
-            "adversarial-review/references/provider-reviewers.md"
-        )
+        adapters = read_repo_file("adversarial-review/references/provider-reviewers.md")
         self.assertIn("Read this reference during reviewer discovery", adapters)
         self.assertIn("`command -v claude`", adapters)
         self.assertIn("minimal read-only smoke", adapters)
