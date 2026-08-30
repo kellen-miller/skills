@@ -228,28 +228,43 @@ class GrillPlanBuildPolicyTest(unittest.TestCase):
         briefing_offset = self.skill.index("### Step 5: Human Implementation Briefing")
         self.assertLess(review_offset, briefing_offset)
 
-    def test_human_plan_review_precedes_planning_adversarial_review(self):
+    def test_plan_approval_does_not_use_lavish(self):
         planning_section = self.skill.split("### Step 2: Planning Agent", 1)[1].split(
             "### Step 3: Goal And Implementation Agent", 1
         )[0]
         for phrase in (
-            ".agent/work/<slug>/plan-review.html",
-            "`decision.md` and `execplan.md` remain authoritative",
             "explicit plan approval",
-            "`plan-approval`",
-            "current plan revision",
-            "foreground poll",
             "same planning agent",
-            "Never stage or commit the plan-review page",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, planning_section)
+
+        self.assertNotIn("lavish", planning_section.lower())
+        self.assertNotIn("plan-review.html", planning_section)
 
         review_offset = planning_section.index("explicit plan approval")
         adversarial_offset = planning_section.index(
             "Run exactly one planning-boundary adversarial review"
         )
         self.assertLess(review_offset, adversarial_offset)
+
+    def test_lavish_runs_only_for_the_final_briefing(self):
+        briefing_section = self.skill.split(
+            "### Step 5: Human Implementation Briefing", 1
+        )[1].split("## Fallback Path", 1)[0]
+        planning_section = self.skill.split("### Step 2: Planning Agent", 1)[1].split(
+            "### Step 3: Goal And Implementation Agent", 1
+        )[0]
+        metadata = read_repo_file("grill-plan-build/agents/openai.yaml")
+
+        self.assertIn("under the Lavish Ownership Contract", briefing_section)
+        self.assertIn(
+            "Lavish is required only for the final implementation-ownership phase",
+            self.skill,
+        )
+        self.assertNotIn("lavish", planning_section.lower())
+        self.assertNotIn("plan-review.html", self.skill)
+        self.assertNotIn("human plan review", metadata.lower())
 
     def test_lavish_contract_is_required_and_tracks_upstream_cli(self):
         normalized_skill = " ".join(self.skill.split())
