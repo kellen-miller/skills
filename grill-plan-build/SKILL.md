@@ -64,10 +64,10 @@ Every `$skill` reference resolves in this order:
    directory, and inherit its declared tool and write constraints.
 4. If no matching `SKILL.md` exists, treat an optional lens as unavailable,
    continue the core workflow, and note the skipped lens in the final output.
-   `$lavish` and the human briefing are required phase dependencies. If
+   `$lavish` and the human briefing are required final-phase dependencies. If
    `$lavish`, `$explain-implementation`, or its renderer is unavailable, stop
-   the affected phase with that blocker instead of substituting another review
-   surface or claiming the workflow completed.
+   the final briefing phase with that blocker instead of substituting another
+   ownership surface or claiming the workflow completed.
 
 When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
 the launch packet and require the subagent to read and execute it in its fresh
@@ -116,8 +116,8 @@ Use the smallest set of supporting skills that improves the work.
 
 Do not invoke supporting lenses just because they are installed. If an optional
 lens is unavailable, continue with the core workflow and note the skipped lens
-in the final output. This does not apply to the required `$lavish` plan-review
-and implementation-ownership sessions.
+in the final output. This does not apply to the required final `$lavish`
+implementation-ownership session.
 
 ## ADR Promotion And Lifecycle Contract
 
@@ -201,12 +201,12 @@ Use these phase agents when subagents are available:
 - one fresh briefing agent invoking `$explain-implementation`, retained through
   the human ownership session
 
-Reuse the grill agent across user answers, the same planning agent across human
-plan-review feedback, and the implementation agent across milestones. Always
-launch planning, review, and briefing contexts fresh; retaining a fresh author
-inside its own bounded review loop does not give it inherited orchestration
-context. Only one mutating agent operates in the worktree at a time unless the
-main agent has explicit disjoint paths and an integration plan.
+Reuse the grill agent across user answers, the same planning agent across plan
+revision and approval feedback, and the implementation agent across milestones.
+Always launch planning, review, and briefing contexts fresh; retaining a fresh
+author inside its own bounded review loop does not give it inherited
+orchestration context. Only one mutating agent operates in the worktree at a
+time unless the main agent has explicit disjoint paths and an integration plan.
 
 If subagents are unavailable, the main agent may invoke the phase skill itself
 and must record that context isolation was unavailable.
@@ -301,13 +301,13 @@ Do not impose a global ceiling or mechanically derive effort from the overall
 risk tier: a simple phase in critical work may need less reasoning, while an
 unusually difficult phase in standard work may justify the maximum.
 
-## Lavish Review Contract
+## Lavish Ownership Contract
 
-Lavish is required for the human plan-review and implementation-ownership
-phases. The phase author produces the local source HTML that Lavish serves,
-annotates, and uses for structured feedback. Lavish does not replace
-`decision.md`, `execplan.md`, implementation source, review evidence, or the
-deterministic implementation-briefing renderer.
+Lavish is required only for the final implementation-ownership phase. The
+briefing agent produces the local source HTML that Lavish serves, annotates,
+and uses for structured feedback. Lavish does not replace `decision.md`,
+`execplan.md`, implementation source, review evidence, or the deterministic
+implementation-briefing renderer.
 
 Follow `$lavish`'s current invocation guidance without pinning a CLI version.
 Disable telemetry for this local workflow:
@@ -327,12 +327,12 @@ feedback surface.
 Every projection stays self-contained with no remote CDN or sidecar assets;
 prefer inline SVG when a diagram would otherwise require a browser runtime.
 Keep the server on its default loopback binding. Never invoke `lavish-axi share`;
-plans and implementation evidence remain local. The main agent owns every Lavish foreground poll
-and forwards returned feedback to the phase author. Do not hide a poll behind
-`&`, `nohup`, an unobserved PTY, or another mechanism that cannot resume the
-main agent. A poll timeout, interruption, layout warning, or feedback batch is
-not session completion; follow its `next_step` and poll again. Lavish session
-state is tool state, not a work item artifact.
+implementation evidence remains local. The main agent owns every Lavish
+foreground poll and forwards returned feedback to the briefing agent. Do not
+hide a poll behind `&`, `nohup`, an unobserved PTY, or another mechanism that
+cannot resume the main agent. A poll timeout, interruption, layout warning, or
+feedback batch is not session completion; follow its `next_step` and poll
+again. Lavish session state is tool state, not a work item artifact.
 
 ## Workflow
 
@@ -408,12 +408,12 @@ and grill only unresolved delivery concerns.
 ### Step 2: Planning Agent
 
 Spawn one fresh planning agent with the completed decision ledger. Retain this
-same planning agent through the human plan-review loop. Tell it to invoke
-`$grillcraft` in planning-only and no-activation mode with exactly one
+same planning agent through plan revision and explicit approval. Tell it to
+invoke `$grillcraft` in planning-only and no-activation mode with exactly one
 `$execplan-improve` attempt for standard or elevated work, or up to two for
-critical work. It writes `decision.md`, `meta.json`, `execplan.md`, and one
-local plan projection in the selected worktree. Lenses and the human plan
-review do not create adversarial-review events.
+critical work. It writes `decision.md`, `meta.json`, and `execplan.md` in the
+selected worktree. Lenses and explicit plan approval do not create
+adversarial-review events.
 
 The result must be a work item:
 
@@ -422,13 +422,11 @@ The result must be a work item:
   decision.md
   meta.json
   execplan.md
-  plan-review.html
 ```
 
 `decision.md` is the intent and provenance record. `execplan.md` is the
 executable implementation contract. `meta.json` is the lifecycle source of
-truth. `decision.md` and `execplan.md` remain authoritative;
-`plan-review.html` is a review projection of those files.
+truth.
 
 When entering from a completed Wayfinder map, add a `Wayfinder provenance`
 section to `decision.md` with the map title, URL, and relevant resolved tickets.
@@ -453,36 +451,26 @@ Record `"wayfinder_map_url"` and `"wayfinder_state": "completed"` in
 
 Record each applicable ADR path and status, or the reason promotion was
 skipped. Keep proposed ADRs aligned with approved intent without copying the
-delivery plan, and expose them in the plan review. After explicit plan approval,
-the planning adversarial review, findings disposition, and any required
-reapproval are complete, perform the acceptance transition defined by the ADR
-Promotion And Lifecycle Contract.
+delivery plan, and include them in the approval summary. After explicit plan
+approval, the planning adversarial review, findings disposition, and any
+required reapproval are complete, perform the acceptance transition defined by
+the ADR Promotion And Lifecycle Contract.
 
 During improvement, check for shallow wrappers, leaked policy, premature seams,
 internal-only tests, speculative abstractions, unjustified compatibility code,
 and incomplete frontend design states.
 
-After improvement, tell the planning agent to invoke `$lavish` guidance and
-create a self-contained `.agent/work/<slug>/plan-review.html`. It must make the
+After improvement, the planning agent returns an approval summary with the
 goal, scope, current and target shapes, component or execution flow, milestones,
-decisions and tradeoffs, risk, rollout, rollback, and validation easy to
-inspect. Use the `plan`, `diagram`, `comparison`, and `input` playbooks when
-their triggers match. Include a content fingerprint of `decision.md` and
-`execplan.md`. The explicit approval control queues exactly one prompt tagged
-`plan-approval` with that current plan revision; selection state is not
-approval.
+decisions and tradeoffs, risk, rollout, rollback, validation, applicable ADRs,
+and a content fingerprint of `decision.md` and `execplan.md`. The main agent
+presents that summary to the user and requires explicit plan approval for the
+current revision. Feedback returns to the same planning agent, which updates
+the authoritative artifacts before returning a revised summary.
 
-Require the page to be ignored by Git and verify rendering leaves Git status
-unchanged. Never stage or commit the plan-review page. The main agent opens the
-page under the Lavish Review Contract, starts its foreground poll, and forwards
-annotations and structured answers to the same planning agent. That agent
-updates the authoritative artifacts first and then rerenders the same HTML path
-so the session live-reloads.
-
-Do not infer approval from opening the page, choosing an option, ending the
-session, chat messages, or silence. Require the page's submitted
-`plan-approval` action matching the current plan revision. Record the Lavish
-session, approved revision, and outcome in `meta.json`.
+Do not infer approval from silence, unrelated messages, or earlier approval of
+a different revision. Record the approved revision, fingerprint, and explicit
+approval outcome in `meta.json`.
 
 Accept the phase only when the authoritative artifacts preserve confirmed
 decisions, contain observable validation, leave `meta.json` at `stage="plan"`
@@ -492,9 +480,9 @@ scope, its frontend-specific packet consumes this event. Verify each finding,
 fix or disposition valid findings, update the planning artifacts when needed,
 and rerun relevant validation. Never re-invoke the adversarial reviewer for that boundary,
 including after critical or high findings. If a verified finding changes
-user-approved intent, rerender the plan and obtain approval for that material
-change without creating another adversarial-review event. The planning agent
-never activates a Goal.
+user-approved intent, present a revised approval summary and obtain approval
+for that material change without creating another adversarial-review event. The
+planning agent never activates a Goal.
 
 ### Step 3: Goal And Implementation Agent
 
@@ -577,7 +565,7 @@ phase only when browser validation proves the component map, execution trace,
 retrieval feedback, source links or Lavish copy-path controls, keyboard
 behavior, and responsive layout work and `git status --short` is unchanged.
 
-The main agent then opens the rendered page under the Lavish Review Contract
+The main agent then opens the rendered page under the Lavish Ownership Contract
 and owns the foreground poll. Forward annotations to the same briefing agent.
 For explanation gaps, the briefing agent updates its evidence model and
 rerenders the same path. A user-ended session completes the ownership loop; do
@@ -606,8 +594,8 @@ default, and fixed review lifecycle itself:
    `stage="decision"` and `state="completed"`
 4. `$execplan-create`, followed by exactly one `$execplan-improve` attempt for
    standard or elevated work, or up to two for critical work
-5. Create and review the ignored `plan-review.html`, apply feedback to the
-   authoritative artifacts, and obtain explicit plan approval
+5. Present an approval summary from `decision.md` and `execplan.md`, apply
+   feedback to the authoritative artifacts, and obtain explicit plan approval
 6. Perform exactly one planning-boundary adversarial review, fix or disposition
    verified findings, rerun relevant validation, and do not invoke it again
 7. The main agent invokes `$goalcraft`, then `$implement-execplan` using the
@@ -641,10 +629,11 @@ Return:
 - artifacts created or updated
 - applicable ADRs, records created or intentionally skipped, lifecycle status,
   and any supersession
-- plan-review path, Lavish session, explicit approval, and feedback disposition
+- explicit plan approval and feedback disposition
 - supporting lenses used or skipped
 - normal closeout and both adversarial-review artifacts and outcomes
-- absolute local implementation-briefing path and browser-validation outcome
+- absolute local implementation-briefing path, Lavish session, and
+  browser-validation outcome
 - current lifecycle state
 - validation run
 - next action or blocker
