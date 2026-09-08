@@ -1,4 +1,4 @@
 interface:
   display_name: "Implementation Briefing"
-  short_description: "Explore and question a completed implementation"
-  default_prompt: "Use $explain-implementation to build a standalone, source-backed briefing and open its local ownership feedback loop."
+  short_description: "Brief a substantial completed implementation"
+  default_prompt: "Use $explain-implementation to build a standalone, source-backed briefing; use Lavish only when explicitly requested."

@@ -1,20 +1,18 @@
 ---
 name: explain-implementation
 description: >-
-  Reconstruct a completed implementation from its final code, work-item
-  artifacts, tests, and validation evidence, then create a source-backed,
-  interactive HTML briefing for the human implementer. Use after implementation
-  and review are complete, at the end of grill-plan-build, or when the user asks
-  for an implementation tour, ownership guide, code walkthrough, or help
-  understanding how a recently built feature works.
+  Use when a completed implementation needs a substantial ownership transfer or
+  the user explicitly requests an implementation briefing, code walkthrough,
+  or ownership guide.
 ---
 
 # Explain Implementation
 
 ## Core Contract
 
-Transfer implementation ownership to the human. Reconstruct the final system
-from source evidence and render one self-contained interactive briefing at:
+Transfer implementation ownership to the human when this substantial briefing
+is warranted. Reconstruct the final system from source evidence and render one
+self-contained interactive briefing at:
 
 ```text
 .agent/work/<slug>/implementation-briefing.html
@@ -28,10 +26,16 @@ Treat the page as a local human artifact:
 - keep Git status unchanged
 - state that removing the worktree removes the page
 
-The renderer produces the source HTML that Lavish serves and annotates. Lavish
-is the required review and ownership interface. The renderer remains the
-deterministic content boundary for schema, source, and Git-state validation;
-direct-open portability is an artifact property, not an alternate workflow.
+The renderer remains the deterministic content boundary for schema, source, and
+Git-state validation. The HTML is valuable as a standalone local artifact and
+may be opened directly. Lavish is an optional annotation interface used only
+when the user explicitly requests that session; it does not replace the HTML
+artifact or determine whether the implementation is complete.
+
+Routine changes do not require this skill. The parent workflow can explain a
+source-backed lifecycle, verification, and limitations in its final response;
+use this richer artifact for substantial ownership transfers or an explicit
+briefing request.
 
 Do not write a decorated diff summary. Explain the feature lifecycle from its
 main entry point, then progressively expose boundaries, execution paths,
@@ -55,8 +59,8 @@ the mismatch. Do not explain unrelated recent changes.
 
 ## Fresh Reconstruction
 
-When a parent workflow can launch agents, run this skill in one fresh context
-with no inherited implementation conversation. Give it:
+For a substantial ownership transfer, a parent workflow should run this skill in
+one fresh context with no inherited implementation conversation. Give it:
 
 - repository and worktree paths
 - branch and base ref
@@ -68,9 +72,12 @@ with no inherited implementation conversation. Give it:
 
 The briefing agent may write only the ignored HTML output and temporary
 rendering input. It is not another review event. If reconstruction reveals a
-material code or artifact contradiction, return it to the implementation owner,
-rerun relevant validation, and regenerate the briefing without reopening
-completed review boundaries.
+material code or artifact contradiction, return it to the implementation owner
+and rerun relevant validation. Perform focused review only when the
+contradiction creates new risk or invalidates prior evidence; otherwise
+regenerate the briefing without reopening completed review boundaries. If a
+fresh explanation context is unavailable, the current agent can perform the
+reconstruction directly.
 
 ## Reconstruct The Implementation
 
@@ -145,10 +152,12 @@ Keep the temporary rendering directory only through the ownership session so
 feedback can update the evidence model and rerender the same page. Remove it
 when the session is complete.
 
-## Lavish Ownership Session
+## Optional Lavish Ownership Session
 
-Open the rendered file through Lavish using its current unversioned CLI
-invocation with telemetry disabled:
+Start this section only after the user explicitly requests an annotated Lavish
+session. Read `$lavish`, then run its current CLI help for the installed
+invocation; do not hardcode a package version. Keep telemetry disabled and the
+server on loopback. The current command shape is:
 
 ```bash
 LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <briefing-path>
@@ -156,19 +165,21 @@ LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <briefing-path> \
   --agent-reply "The briefing is ready; start with the orientation and flow."
 ```
 
-If `npx -y` cannot run, use only the installed-copy invocations documented by
-`$lavish`. If none can start or resume the session, stop with the ownership
-phase blocked. Do not substitute a direct-open handoff or chat-only review.
+If the documented invocation cannot start or resume the session, report the
+Lavish session as unavailable and provide the standalone HTML path. This does
+not negate verified implementation or HTML-rendering evidence.
 
-Keep each poll in the foreground. When a parent workflow invoked this skill,
-the main agent owns the foreground poll and forwards its result to this same
+The main agent owns every foreground poll and forwards feedback to this same
 briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
 Never invoke `lavish-axi share`; the implementation evidence remains local.
-Keep the server on loopback.
+A poll timeout means no new feedback; it is not user-ended session completion.
+Recover interruptions when possible, and report any inability to continue.
+Stop only when the user explicitly ends the requested session.
 
 ## Validate The Experience
 
-In the Lavish-served browser page, verify:
+When browser tooling is available, verify the rendered page (through Lavish when
+requested, otherwise by opening the local HTML directly):
 
 - no console errors
 - the first render explains the feature without interaction
@@ -177,11 +188,13 @@ In the Lavish-served browser page, verify:
 - a retrieval answer produces correct feedback and source evidence
 - keyboard focus and controls work
 - the layout remains readable at approximately 390px and 1280px widths
-- source links point at real repository files, and Lavish mode exposes a
-  working copy-path control when its HTTP iframe cannot open `file://` links
+- source links point at real repository files; Lavish mode exposes a working
+  copy-path control when its HTTP iframe cannot open `file://` links
 - `git status --short` matches its pre-render state
 
-Fix the skill output or evidence and rerender when validation fails.
+If browser tooling is unavailable, report that browser validation is unverified;
+this does not negate code completion or the renderer’s checks. Fix the skill
+output or evidence and rerender when available validation fails.
 Use annotations and structured actions to distinguish:
 
 - an explanation gap: update the temporary evidence model and rerender the same
@@ -193,13 +206,12 @@ Use annotations and structured actions to distinguish:
 - a browser `layout_warnings` result: repair and recheck before asking the human
   to continue
 
-Poll again after each feedback batch. A timeout, interruption, or feedback
-response does not finish the loop. Stop when the user ends the session, and do
-not reopen a user-ended session without an explicit request.
+Poll again after each feedback batch. Stop when the user ends the requested
+session, and do not reopen a user-ended session without a new explicit request.
 
-Lavish owns the review loop without becoming part of the generated file. The
-single-file artifact boundary remains because it is the input Lavish serves and
-the local evidence artifact the worktree owns.
+Lavish annotates the ownership session without becoming part of the generated
+file. The single-file artifact boundary remains because it is the local
+evidence artifact the worktree owns.
 
 ## Return
 
@@ -209,6 +221,9 @@ Report:
 - the work item and source snapshot
 - which flows and maintenance recipes it covers
 - browser and Git-status validation
-- Lavish ownership-session outcome
+- Lavish ownership-session outcome when explicitly requested, or that it was
+  not requested
 - any evidence gaps or reconstruction blocker
+- whether an explicitly requested briefing or session remains incomplete,
+  reported separately from implementation completion
 - that the artifact is local-only and disappears with its worktree
