@@ -202,6 +202,7 @@ worker merge concurrent results into the shared integration checkout.
 
 For repairs after integration, retain useful worker context but assign a fresh
 branch/worktree at the current integration commit containing its prior result.
+Give it an updated task-local plan containing only the repair scope and checks.
 Record that new starting commit and integrate only new commits after it; do not
 reapply the earlier result. Preserve prior worker state until transfer is verified.
 

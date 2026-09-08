@@ -7,18 +7,18 @@ description: Use when frontend UI, visual design, layout, CSS, responsive behavi
 
 ## Ownership
 
-The main workflow agent owns review selection, integration, verified-finding
-disposition, and acceptance. Implementation agents own frontend mutation and
-evidence in assigned worktrees; reviewers remain read-only. When invoked
-directly without parent workers, the current agent owns these responsibilities.
-Do not assign integration or acceptance to a worker.
+Follow the parent workflow's ownership and `$adversarial-review`'s
+finding-handling contract. Implementation agents mutate frontend code and gather
+evidence only in their assigned worktrees. When invoked directly without parent
+workers, the current agent owns the workflow.
 
 The parent or current agent selects any frontend-specific review packet. This
 lens contributes to that review and schedules none.
 
 ## Preconditions
 
-- Work in the selected worktree from the parent workflow.
+- Work in the worktree assigned by the parent workflow, or the current worktree
+  when invoked directly.
 - Inspect the existing design system, component patterns, CSS strategy, token
   files, layout primitives, and validation commands before changing UI.
 - For Svelte or SvelteKit work, use official Svelte docs or the Svelte MCP tools
@@ -59,9 +59,7 @@ a plan review. Follow the parent scheduling and `$adversarial-review` contract;
 this lens does not schedule planning critique.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
-The main workflow agent verifies every finding, directs implementers to fix
-valid findings, and reruns relevant validation. Rejected recommendations must
-be ignored; do not carry them forward as noise.
+Do not carry rejected recommendations forward as noise.
 
 ## Implementation Pass
 
@@ -117,10 +115,8 @@ covering design, ordinary correctness, validation, and adversarial risks in its
 single packet. Use `$adversarial-review`'s provider-selection and status
 contract; do not create a separate review for this lens.
 
-The main workflow agent verifies every finding, directs implementers to fix
-valid issues, integrates the result, and accepts it. Any repeat review follows
-the parent scheduling and `$adversarial-review` contract, uses changed evidence,
-and is never scheduled by this lens.
+Any repeat review follows the parent scheduling and `$adversarial-review`
+contract and is never scheduled by this lens.
 
 Ask the reviewer to look for serious issues in:
 
@@ -129,8 +125,3 @@ Ask the reviewer to look for serious issues in:
 - component boundaries, duplicated styling, token misuse, and brittle CSS
 - mismatch between plan, implementation, screenshots, and validation evidence
 - unnecessary backwards compatibility or legacy UI noise
-
-The main workflow agent fixes or dispositions valid findings through the
-implementation agents, reruns relevant validation, and finalizes.
-
-Do not preserve backwards compatibility unless the plan explicitly requires it.
