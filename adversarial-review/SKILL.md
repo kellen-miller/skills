@@ -11,17 +11,26 @@ description: >-
 
 ## Core Contract
 
-Run one fresh reviewer against a compact artifact packet. Use a reviewer from a
-different provider than the author whenever a suitable native or external
-mechanism is available. Cross-provider review is the default requirement, not
-a soft preference. The reviewer finds serious risks; the calling agent verifies
-each claim against repository or runtime evidence before changing plans, code,
-or status.
+Run one fresh reviewer against a compact artifact packet for the boundary the
+caller selected. Use a reviewer from a different provider than the author
+whenever a suitable native or external mechanism is available. Cross-provider
+review is the default requirement, not a soft preference. Keep the reviewer
+read-only: the main agent verifies each claim against repository or runtime
+evidence, directs implementers to fix valid findings, integrates the changes,
+and accepts the result.
 
-One invocation evaluates one completed planning or implementation boundary. Run one fresh reviewer.
-Do not spawn nested reviewers by default. Critical risk may increase the
-reviewer's capability or reasoning effort, but it does not add reviewers or
-another invocation for the same boundary.
+When invoked standalone without parent workers, the current agent owns boundary
+selection, evidence verification, bounded fixes, integration, and acceptance;
+the independent reviewer remains read-only. Before plan approval, honor an
+explicitly requested plan review. If the caller has not selected a review, use
+a planning packet only when architecture, security, data, migration, or other
+consequential design risk warrants critique; UI scope alone does not require
+one. One completed review is the default for a selected boundary. A focused
+follow-up is allowed only when concrete changed evidence introduces new risk or
+invalidates the prior conclusion; review that changed surface and new evidence
+instead of repeating the full review. Do not spawn nested reviewers by default.
+Critical risk may increase capability or reasoning effort, but does not by
+itself add reviewers.
 
 ## Reviewer Selection
 
@@ -41,9 +50,8 @@ another invocation for the same boundary.
 
 Do not launch a same-provider reviewer before completing and recording the
 cross-provider inventory. If one is launched prematurely, stop it before it
-returns a completed boundary status and continue with the cross-provider path;
-an interrupted launch does not consume the boundary's one completed review
-event.
+returns a completed status and continue with the cross-provider path; an
+interrupted launch does not consume the selected review event.
 
 Record unavailable evidence or provider capacity. Missing cross-provider
 capacity is not automatically blocking for standard or elevated work; the
@@ -119,8 +127,10 @@ when possible as an audit trail.
 
 ## Handling Findings
 
-Treat every finding as a claim. Verify it, fix valid bounded issues, update
-planning artifacts when intent or risk changes, reject unsupported compatibility
-requests, rerun relevant validation, and return control without re-invoking adversarial review for that boundary.
-This remains true after critical or high findings and after material changes to
-the reviewed surface.
+Treat every finding as a claim. The main agent verifies it, directs
+implementers to fix valid bounded issues, updates planning artifacts when
+intent or risk changes, rejects unsupported compatibility requests, integrates
+the verified changes, reruns relevant validation, and records the disposition.
+Request a focused follow-up only under the changed-evidence rule in Core
+Contract; do not repeat a full review merely because findings were critical or
+the implementer made a fix.

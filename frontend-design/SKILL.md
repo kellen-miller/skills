@@ -7,17 +7,18 @@ description: Use when frontend UI, visual design, layout, CSS, responsive behavi
 
 ## Ownership
 
-The current implementation agent owns frontend mutation, integration, browser
-evidence, validation, and the decision to accept verified findings. Do not
-delegate mutation merely because an independent reviewer exists.
+Follow the parent workflow's ownership and `$adversarial-review`'s
+finding-handling contract. Implementation agents mutate frontend code and gather
+evidence only in their assigned worktrees. When invoked directly without parent
+workers, the current agent owns the workflow.
 
-When frontend work is in scope, both fixed adversarial boundary events use a
-frontend-specific packet. Each packet consumes its corresponding parent event
-instead of creating an additional review.
+The parent or current agent selects any frontend-specific review packet. This
+lens contributes to that review and schedules none.
 
 ## Preconditions
 
-- Work in the selected worktree from the parent workflow.
+- Work in the worktree assigned by the parent workflow, or the current worktree
+  when invoked directly.
 - Inspect the existing design system, component patterns, CSS strategy, token
   files, layout primitives, and validation commands before changing UI.
 - For Svelte or SvelteKit work, use official Svelte docs or the Svelte MCP tools
@@ -53,21 +54,20 @@ The planning agent identifies:
   closeout
 - validation commands that prove the frontend result
 
-Invoke `$adversarial-review` with a frontend-specific packet after planning is
-complete. This consumes the parent workflow's one planning-boundary adversarial event
-and does not add a second generic adversarial review.
+Contribute frontend planning evidence when the parent or current agent selects
+a plan review. Follow the parent scheduling and `$adversarial-review` contract;
+this lens does not schedule planning critique.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
-Verify every finding, fix or disposition valid findings, and rerun relevant
-validation. Rejected recommendations must be ignored; do not carry them forward
-as noise. Never re-invoke the adversarial reviewer for that boundary.
+Do not carry rejected recommendations forward as noise.
 
 ## Implementation Pass
 
-The current implementation agent writes the frontend code directly, uses the
-existing design system and tokens, implements applicable loading, empty, error,
-disabled, permission, mobile, and dense-data states, and gathers evidence after
-editing.
+Implementation agents write frontend code in their assigned worktrees, use the
+existing design system and tokens, implement applicable loading, empty, error,
+disabled, permission, mobile, and dense-data states, and gather evidence after
+editing. Return the evidence to the main workflow agent for integration and
+acceptance.
 
 Before editing:
 
@@ -107,13 +107,16 @@ needed but unavailable, record the gap as a blocker or residual risk.
 
 ## Independent Frontend Review
 
-After implementation and the normal closeout review are complete, gather the
-diff, planning artifacts, rendered evidence, component and token files, and
-validation output. Invoke `$adversarial-review` once with a frontend-specific
-lens. This consumes the parent workflow's one implementation-boundary adversarial event
-and does not add a second generic adversarial review. Use its provider-selection
-and status contract. The implementation owner verifies every finding before
-changing code.
+When the parent or current agent selects implementation review, gather the diff,
+planning artifacts, rendered evidence, component and token files, and validation
+output.
+Contribute a frontend-specific lens to that selected independent review,
+covering design, ordinary correctness, validation, and adversarial risks in its
+single packet. Use `$adversarial-review`'s provider-selection and status
+contract; do not create a separate review for this lens.
+
+Any repeat review follows the parent scheduling and `$adversarial-review`
+contract and is never scheduled by this lens.
 
 Ask the reviewer to look for serious issues in:
 
@@ -122,9 +125,3 @@ Ask the reviewer to look for serious issues in:
 - component boundaries, duplicated styling, token misuse, and brittle CSS
 - mismatch between plan, implementation, screenshots, and validation evidence
 - unnecessary backwards compatibility or legacy UI noise
-
-Fix or disposition valid findings, rerun relevant validation, and finalize.
-Never re-invoke the adversarial reviewer for that boundary, including after
-critical or high findings.
-
-Do not preserve backwards compatibility unless the plan explicitly requires it.

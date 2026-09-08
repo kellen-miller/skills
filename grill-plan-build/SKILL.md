@@ -1,639 +1,283 @@
 ---
 name: grill-plan-build
 description: >-
-  Use when the user says "use the full workflow", "run my workflow", "grill
-  plan build", "grill then build", or asks to encode a complex feature,
-  refactor, migration, architecture change, or security-sensitive change that
-  needs artifact-backed planning or effort-shape routing before implementation.
-  Do not use for tiny edits, one-line fixes, or answers where the user clearly
-  wants no planning workflow.
+  Use when the user requests grill-plan-build, their full grill/plan/build
+  workflow, or a complex feature, refactor, migration, or architecture change
+  requiring resolved design decisions and a durable implementation plan.
+  Do not use for tiny edits or when the user wants only an answer or review.
 ---
 
 # Grill Plan Build
 
-## Core Contract
-
-Run an artifact-backed implementation workflow. Do not start by coding. First
-extract intent, then write durable artifacts, then execute through an
-evidence-checked plan and goal loop.
-
-Optimize for the best current shape of the system. Do not preserve backwards
-compatibility, legacy shims, aliases, dual paths, deprecation scaffolding, or
-old output shapes unless the user, a public contract, production data, or a
-rollout plan makes that compatibility requirement explicit.
-
-This skill orchestrates these skills when available:
-
-- `$grill-me`
-- `$grillcraft`
-- `$execplan-create`
-- `$execplan-improve`
-- `$goalcraft`
-- `$implement-execplan`
-- `$review-recent-work`
-- `$adversarial-review`
-- `$explain-implementation`
-- `$lavish`
-- `$using-git-worktrees`
-
-It may also use these skills as phase-specific lenses when they fit:
-
-- `$grill-with-docs`
-- `$domain-modeling`
-- `$codebase-design`
-- `$tdd`
-- `$code-review`
-- `$frontend-design`
-
-`$wayfinder` is a user-invoked on-ramp, not an orchestrated sub-skill or a
-phase-specific lens. Hand work to it only through the effort-shape gate below.
-
-## Sub-Skill Resolution
-
-Every `$skill` reference resolves in this order:
-
-1. If the name is registered as an invocable skill in the current runtime,
-   invoke it through the native skill mechanism.
-2. Otherwise resolve it to a `SKILL.md` on disk and execute that file inline:
-   read it and follow its instructions as written. The personal skill root is
-   `~/.agents/skills/`; installed sub-skills live under it, typically at
-   `_managed/<name>/SKILL.md` (for example
-   `_managed/grill-me/SKILL.md` and `_managed/using-git-worktrees/SKILL.md`).
-   Match by the target's frontmatter `name`, not by directory name alone.
-3. Resolve any paths a sub-skill references against that sub-skill's own
-   directory, and inherit its declared tool and write constraints.
-4. If no matching `SKILL.md` exists, treat an optional lens as unavailable,
-   continue the core workflow, and note the skipped lens in the final output.
-   `$lavish` and the human briefing are required final-phase dependencies. If
-   `$lavish`, `$explain-implementation`, or its renderer is unavailable, stop
-   the final briefing phase with that blocker instead of substituting another
-   ownership surface or claiming the workflow completed.
-
-When a phase runs in a subagent, pass the resolved absolute `SKILL.md` path in
-the launch packet and require the subagent to read and execute it in its fresh
-context. File-path execution satisfies the phase contract; it does not relax the
-Fresh-Context Launch Contract or the fixed review lifecycle.
-
-## Skill Routing
-
-Use the smallest set of supporting skills that improves the work.
-
-- Wayfinder handoff: when planning itself is too large for one session and the
-  route is obscured by unresolved decisions or investigations, stop this
-  workflow and tell the user to invoke `$wayfinder` with a proposed destination.
-  Do not invoke it automatically.
-- Wayfinder continuation: when an active Wayfinder map still has open child
-  tickets or in-scope fog under `Not yet specified`, stop this workflow and tell
-  the user to invoke `$wayfinder` with the map URL. Never resolve more than one
-  Wayfinder ticket per session.
-- Wayfinder re-entry: when a Wayfinder map has no open child tickets and no
-  remaining in-scope fog, treat its destination and linked resolutions as
-  settled planning input and continue this workflow without re-grilling them.
-- Default grill: invoke `$grill-me`.
-- Docs-backed grill: invoke `$grill-with-docs` instead of `$grill-me` when the
-  work should update `CONTEXT.md`, create or refine ADRs, or settle shared
-  domain language.
-- Domain lens: use `$domain-modeling` when terms, lifecycle states, ownership,
-  or domain boundaries are fuzzy. Capture resolved terms in `CONTEXT.md` and
-  create ADRs only for hard-to-reverse, surprising, trade-off-heavy decisions.
-- Design lens: use `$codebase-design` during ExecPlan improvement when the work
-  changes module shape, public interfaces, seams, adapters, or testability.
-- Frontend design lens: use `$frontend-design` when frontend UI, visual design,
-  layout, CSS, component composition, responsive behavior, or design-system fit
-  materially affects the result. At each adversarial boundary, a
-  frontend-specific packet consumes that boundary's one event instead of
-  adding another generic adversarial review.
-- TDD lens: use `$tdd` during implementation slices when behavior can be
-  verified at an agreed seam.
-- Formal review: use `$code-review` only when there is both a fixed point such
-  as `main`, a merge-base, or a commit, and a spec source such as `decision.md`,
-  `execplan.md`, a PRD, or an issue. Otherwise select `$review-recent-work`.
-- Shape over compatibility: treat backwards-compatibility concerns as invalid
-  unless backed by an explicit requirement. Prefer removing old names, shims,
-  wrappers, and compatibility paths when they would make the new shape noisier.
-- Worktree guard: invoke `$using-git-worktrees` before creating `.agent/work`
-  artifacts or mutating repository files.
-
-Do not invoke supporting lenses just because they are installed. If an optional
-lens is unavailable, continue with the core workflow and note the skipped lens
-in the final output. This does not apply to the required final `$lavish`
-implementation-ownership session.
-
-## ADR Promotion And Lifecycle Contract
-
-Read applicable repository ADRs before grilling or planning. Honor the
-repository's existing ADR directory, naming, numbering, and content convention.
-If none exists, use `docs/adr/NNNN-descriptive-outcome.md`, with the next
-four-digit number allocated from the current base revision.
-
-Promote a decision to an ADR only when all three conditions hold:
-
-- it has durable architectural impact
-- it involves a non-obvious, real trade-off
-- its rationale will matter beyond the current work item
-
-Keep nonqualifying reasoning in `decision.md` or the ExecPlan Decision Log and
-record that ADR promotion was intentionally skipped. For qualifying decisions,
-use `$grill-with-docs` and `$domain-modeling`; do not create another ADR owner.
-The ADR records context, decision drivers, serious options, the decision, and
-consequences. Link the work item instead of copying delivery steps from the
-ExecPlan.
-
-Create qualifying ADRs as `proposed`. Keep them proposed through explicit plan
-approval, the planning-boundary adversarial review, disposition of its findings,
-and any required reapproval. Accept them after that boundary unless explicit
-repository policy defers acceptance to pull-request approval or merge. If an
-ADR number collides before integration, renumber proposed records only; never
-renumber accepted or rejected history.
-
-Accepted and rejected rationale is append-only except for narrow metadata or
-link corrections. Replace an accepted decision with a new proposed ADR; once
-accepted, add reciprocal `supersedes` and `superseded by` links. Keep rejected
-records as history. Do not backfill decisions by default; a retrospective ADR
-must identify itself as retrospective and cite contemporaneous evidence.
-
-Applicable accepted ADRs constrain planning, implementation, review, and the
-implementation briefing. Route conflicts or discoveries that would change an
-accepted decision through the main agent before changing intent.
-
-## Orchestrator Contract
-
-The main agent is the durable orchestrator and user-facing owner. It owns the
-effort-shape gate, risk classification, user questions and approvals, worktree
-selection, Goal activation, phase gates, and final acceptance. It dispatches
-bounded agents to invoke phase subskills and does not repeat completed phase
-work merely for reassurance.
-
-Worktree selection and Goal activation stay with the main agent. Pass every
-subagent the absolute worktree path, branch, base ref, explicit work-item path,
-selected skill, risk tier, allowed mutations, and required status contract.
-
-### Fresh-Context Launch Contract
-
-Fresh planning, review, and briefing agents receive only a minimal task-local launch
-packet. Do not inherit the orchestrator's conversation when the runtime
-supports no-inheritance launch controls; in the current runtime, launch a fresh
-agent with `fork_turns: "none"`. Give fresh agents the applicable lenses and
-raw artifacts or evidence they need to inspect, not the orchestrator's
-conclusions about those artifacts.
-
-The packet may contain the absolute repository and worktree paths, branch and
-base ref, explicit work-item or artifact paths, selected skill, risk tier,
-applicable lenses, allowed mutations, required output/status contract, and raw
-decision ledger, diffs, validation output, or other evidence. It must not
-include prior conversational reasoning except where that reasoning is itself a
-durable raw artifact the agent must evaluate.
-
-Keep the persistent grill and implementation agents on their existing contexts:
-the grill agent carries user decisions across questions and the implementation
-agent carries implementation state across milestones. This no-inheritance rule
-applies to fresh planning and review agents, not those persistent agents.
-
-Use these phase agents when subagents are available:
-
-- one persistent grill agent invoking `$grill-me` or `$grill-with-docs`
-- one fresh planning agent invoking `$grillcraft` in planning-only,
-  no-activation mode with exactly one `$execplan-improve` attempt by default
-- one persistent implementation agent invoking `$implement-execplan`
-- one fresh closeout reviewer invoking exactly one normal review skill
-- one fresh planning adversarial reviewer invoking `$adversarial-review`
-- one fresh implementation adversarial reviewer invoking `$adversarial-review`
-- one fresh briefing agent invoking `$explain-implementation`, retained through
-  the human ownership session
-
-Reuse the grill agent across user answers, the same planning agent across plan
-revision and approval feedback, and the implementation agent across milestones.
-Always launch planning, review, and briefing contexts fresh; retaining a fresh
-author inside its own bounded review loop does not give it inherited
-orchestration context. Only one mutating agent operates in the worktree at a
-time unless the main agent has explicit disjoint paths and an integration plan.
-
-If subagents are unavailable, the main agent may invoke the phase skill itself
-and must record that context isolation was unavailable.
-
-If a phase agent returns an incomplete status, continue the same agent once
-with the missing requirements. Replace it only when its context is corrupted,
-it is unavailable, or the retry fails. Stop with an evidence-backed blocker if
-the replacement still cannot satisfy the phase contract.
-
-The continuation-or-replacement rule ends when an adversarial reviewer returns
-its completed boundary status. Context loss, reviewer unavailability, later
-fixes, changed artifacts, and failed validation do not reopen that boundary or
-authorize another adversarial-review invocation for it.
-
-## Risk And Review Lifecycle
-
-| Tier | Typical shape | Plan-improvement depth | Planning adversarial review | Normal closeout review | Implementation adversarial review |
-| --- | --- | --- | --- | --- | --- |
-| Standard | Bounded feature or refactor with ordinary rollback | Exactly one improvement attempt | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
-| Elevated | Architecture, public interface, meaningful production rollout, or difficult recovery | Exactly one improvement attempt | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
-| Critical | Security, authz, billing, credible data loss, destructive migration, or similarly irreversible change | Up to two improvement attempts | Exactly one adversarial event | Exactly one closeout event | Exactly one adversarial event |
-
-Risk changes plan-improvement depth and reviewer capability, not review-event count.
-Every tier runs the same three review events in lifecycle order. Findings may
-change the work and validation evidence, but they never create another review
-event at the completed boundary.
-
-## Independent Reviewer Selection
-
-Use this ordered selection contract for each planning-boundary and
-implementation-boundary adversarial review, including the fallback path:
-
-1. Identify the authoring provider when the runtime exposes it.
-2. Inventory both native provider-aware reviewers and the external adapters in
-   `$adversarial-review`'s `references/provider-reviewers.md`. Absence from the
-   native subagent picker is not evidence that another provider is unavailable.
-3. Use a suitable different-provider reviewer whenever either mechanism makes
-   one available. Treat cross-provider review as the default requirement, not
-   a soft preference.
-4. Use a fresh isolated session from the same provider only after recording
-   that no suitable different-provider mechanism exists or that the available
-   mechanism failed its bounded availability check or review invocation.
-5. If no isolated reviewer is available, use another fresh reviewer in the
-   current provider and record the reduced independence.
-6. Use the current authoring session only as a last resort.
-
-Do not launch a same-provider reviewer before completing and recording the
-cross-provider inventory. If one is launched prematurely, stop it before it
-returns a completed boundary status and continue with the cross-provider path;
-an interrupted launch does not consume the boundary's one completed review
-event.
-
-Record the author provider, reviewer provider, model when known, independence
-level, evidence limitations, and the review severity and status fields in the
-work item. For critical work, the main agent decides whether a missing
-cross-provider capacity blocks acceptance or requires explicit user waiver.
-
-## Model And Reasoning Profiles
-
-Express profiles by capability and map them to concrete models only when the
-runtime supports model selection:
-
-- main orchestrator: user-selected capable model with reasoning appropriate to
-  the routing and synthesis complexity
-- grill agent: balanced repository-capable model with reasoning appropriate to
-  the ambiguity and decision depth
-- planning agent: strong design and coding model with reasoning appropriate to
-  the architectural breadth, uncertainty, and proof burden
-- implementation agent: strong coding model with reasoning selected for the
-  current implementation slice
-- closeout reviewer: balanced model in a fresh context with reasoning selected
-  for the change breadth and review difficulty
-- independent reviewer: suitable different-provider model when available, with
-  reasoning selected for the risk and difficulty of the review boundary
-- briefing agent: balanced repository-capable model in a fresh context with
-  reasoning appropriate to the implementation's explanatory complexity
-
-For every supported phase launch, explicitly set both `model` and
-`reasoning_effort` to the concrete values selected from these profiles. Do not
-leave either value to inheritance when the launch API supports the override.
-Record phase evidence with `actual_model`, `actual_reasoning_effort`, and
-`unavailable_capability_fallback`; use `none` for the fallback when every
-selected capability was available. If the runtime cannot set an override,
-record the actual inherited value when observable and name the unavailable
-capability and chosen fallback.
-
-Let the phase-launching model select any supported reasoning effort it judges
-appropriate from phase-local evidence. `xhigh` and `max` are valid choices when
-the model judges that complexity, ambiguity, interacting constraints, risk, or
-proof difficulty warrants them; they do not require a prior failed attempt.
-Do not impose a global ceiling or mechanically derive effort from the overall
-risk tier: a simple phase in critical work may need less reasoning, while an
-unusually difficult phase in standard work may justify the maximum.
-
-## Lavish Ownership Contract
-
-Lavish is required only for the final implementation-ownership phase. The
-briefing agent produces the local source HTML that Lavish serves, annotates,
-and uses for structured feedback. Lavish does not replace `decision.md`,
-`execplan.md`, implementation source, review evidence, or the deterministic
-implementation-briefing renderer.
-
-Follow `$lavish`'s current invocation guidance without pinning a CLI version.
-Disable telemetry for this local workflow:
-
-```bash
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <html-path>
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <html-path> \
-  --agent-reply "<what changed or what to review>"
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi end <html-path>
-```
-
-If `npx -y` cannot run, use only the installed-copy invocations documented by
-`$lavish`. If none can start or resume a Lavish session, stop the current phase
-as blocked. Do not substitute direct-open HTML, chat-only approval, or another
-feedback surface.
-
-Every projection stays self-contained with no remote CDN or sidecar assets;
-prefer inline SVG when a diagram would otherwise require a browser runtime.
-Keep the server on its default loopback binding. Never invoke `lavish-axi share`;
-implementation evidence remains local. The main agent owns every Lavish
-foreground poll and forwards returned feedback to the briefing agent. Do not
-hide a poll behind `&`, `nohup`, an unobserved PTY, or another mechanism that
-cannot resume the main agent. A poll timeout, interruption, layout warning, or
-feedback batch is not session completion; follow its `next_step` and poll
-again. Lavish session state is tool state, not a work item artifact.
-
-## Workflow
-
-### Step -1: Effort Shape Gate
-
-Before creating a worktree, issue, `.agent/work` artifact, or implementation
-change, determine whether the route can be planned in one session. Read-only
-repository and tracker inspection is allowed during this gate.
-
-| Observable shape | Route |
-| --- | --- |
-| Bounded uncertainty that one grill can resolve | Continue to Step 0 |
-| Large implementation with settled decisions or an approved spec | Continue to Step 0 |
-| Planning spans sessions because major decisions or investigations remain unresolved | Hand off to `$wayfinder` |
-| Active Wayfinder map with open tickets or in-scope fog | Return to `$wayfinder` |
-| Completed Wayfinder map with a clear route | Continue to Step 0 using the map as input |
-
-Do not equate implementation length with planning fog. Many milestones, files,
-services, or implementation sessions do not require Wayfinder when the route is
-already clear enough to write an executable plan.
-
-For a Wayfinder handoff, stop before Step 0 and return:
-
-- current phase: `wayfinder-handoff`
-- why the route cannot yet be planned in one session
-- a concise proposed destination, or the active map title and URL
-- the exact user invocation: `$wayfinder <proposed destination>` or
-  `$wayfinder <map URL>`
-
-Wayfinder is planning by default and user-invoked. Do not create its map, claim
-its tickets, or proceed into `grill-plan-build` artifacts or implementation as
-part of the handoff.
-
-### Step 0: Worktree Guard
-
-Before writing any artifact or implementation change, ensure the agent is
-working in an isolated workspace.
-
-- Invoke `$using-git-worktrees` when the task is inside a git repository.
-- If already in a linked worktree, record the path, branch, base ref, and
-  upstream/tracking state, then continue there.
-- If in the primary checkout, create or select an isolated worktree and `cd`
-  into it before creating `.agent/work/<slug>/` or editing source files.
-- If the primary checkout has unrelated local changes, do not edit it. Move the
-  work into an isolated worktree first.
-- If the user explicitly requires in-place work, record that exception in
-  `decision.md` and `meta.json` before writing files.
-- If the task is not in a git repository, record that no worktree can be used
-  and keep all artifact paths explicit.
-
-Do not rationalize that planning artifacts are harmless in the primary
-checkout. `.agent/work` artifacts, docs, source edits, generated files, and
-validation output all belong to the selected worktree for this workflow.
-
-### Step 1: Grill Agent
-
-Spawn one persistent grill agent. Keep it read-only for `$grill-me`; for
-`$grill-with-docs`, allow writes only to selected `CONTEXT.md` and ADR paths.
-The agent inspects discoverable facts, proposes the next question, and returns
-confirmed decisions, open decisions, assumptions, risks, validation, rollout,
-and rollback. The main agent asks the user and forwards answers to the same
-agent. Do not implement during this phase.
-
-First read applicable ADRs and report conflicts. Apply the ADR Promotion And
-Lifecycle Contract to each durable decision; a docs-backed grill may draft only
-qualifying records, with status `proposed`.
-
-When entering from a completed Wayfinder map, load the destination, `Decisions
-so far`, `Not yet specified`, and `Out of scope` sections. Read linked
-resolution tickets on demand, preserve settled decisions and scope boundaries,
-and grill only unresolved delivery concerns.
-
-### Step 2: Planning Agent
-
-Spawn one fresh planning agent with the completed decision ledger. Retain this
-same planning agent through plan revision and explicit approval. Tell it to
-invoke `$grillcraft` in planning-only and no-activation mode with exactly one
-`$execplan-improve` attempt for standard or elevated work, or up to two for
-critical work. It writes `decision.md`, `meta.json`, and `execplan.md` in the
-selected worktree. Lenses and explicit plan approval do not create
-adversarial-review events.
-
-The result must be a work item:
+Resolve intent, write an executable plan, implement through smaller agents,
+validate the integrated result, obtain independent review, and explain it.
+The user-selected main model owns grilling, planning, coordination, integration,
+and acceptance. Keep those decisions with the capable main model; delegate
+bounded coding work to smaller models in separate worktrees.
+
+User instructions and existing authorization take precedence over skill
+preferences. Preserve approved decisions; ask only about unresolved judgments
+that could materially change the result. Do not restart grilling or approval
+merely because a phase or agent changed.
+
+## 1. Establish Scope And Workspace
+
+Inspect the relevant source, repository instructions, Git state, and applicable
+ADRs before proposing a design. Distinguish unresolved planning from a large
+implementation whose design is already settled.
+
+If major unresolved decisions or investigations make planning span sessions,
+propose a destination and ask the user to invoke `$wayfinder`; do not create
+its map or start implementation. For an active map, return to its open tickets
+or in-scope fog. For a completed map, reuse its destination and linked decisions
+without re-grilling them. Keep the map URL in the work item when applicable.
+
+Use `$using-git-worktrees` to select an isolated integration worktree before
+writing artifacts or source. Reuse the current managed worktree if already
+isolated; preserve the primary checkout and unrelated changes. Honor an
+explicit in-place instruction. Inspect and record branch, base ref, starting
+commit, and upstream rather than assuming tracking is safe. Follow repository
+branch and publication rules; workflow invocation does not authorize deployment
+or unrelated external writes.
+
+If Git or delegation is unavailable, retain the same decision, validation,
+and acceptance responsibilities locally and disclose the actual limitation.
+Do not simulate isolation or claim parallel execution that did not occur.
+
+## 2. Grill And Plan In The Main Context
+
+The main agent invokes `$grill-me`, inspects discoverable facts itself, and
+asks the user about unresolved intent, tradeoffs, failure behavior, and scope.
+Reuse an existing approved spec or decision ledger. Do not relay each question
+through a separate grill agent or create a new planning agent by default.
+
+Apply supporting lenses only when they change the work:
+
+- `$domain-modeling` for unclear terminology, lifecycle, ownership, or ADRs;
+  `$grill-with-docs` may combine this with grilling when available.
+- `$codebase-design` for module boundaries and public interfaces.
+- `$frontend-design` for UI shape, interaction states, and browser evidence.
+
+Honor existing ADR conventions. Promote only durable, non-obvious architectural
+tradeoffs whose rationale matters beyond this work; let `$domain-modeling`
+own authoring and format. Preserve accepted rationale and supersede it with a
+new decision when intent changes. Keep ordinary delivery decisions in the plan.
+
+In Git repositories, verify `.agent/work/` is ignored in each worktree before
+writing its work items. Use existing rules or a Git-local exclude when needed;
+keep plans, review packets, and briefings out of commits. The main agent writes
+the canonical work item in the integration worktree:
 
 ```text
 .agent/work/<slug>/
   decision.md
-  meta.json
   execplan.md
+  meta.json
 ```
 
-`decision.md` is the intent and provenance record. `execplan.md` is the
-executable implementation contract. `meta.json` is the lifecycle source of
-truth.
+- `decision.md`: objective, confirmed user decisions, assumptions, non-goals,
+  material risks, and approval/provenance. Distinguish user decisions from
+  agent recommendations. Link relevant ADRs or completed Wayfinder decisions.
+- `execplan.md`: intended behavior, source-grounded changes, ordered milestones,
+  task ownership/dependencies, observable acceptance checks, and rollout or
+  recovery when relevant. Keep progress, discoveries, and decision changes
+  current. Follow the repository's `.agent/PLANS.md` when present.
+- `meta.json`: lifecycle (`stage`, `state`) and explicit artifact paths. Use
+  `stage="plan"` while planning, then `stage="implementation"` while executing;
+  use `state="active"`, `"blocked"`, or `"completed"` according to evidence.
 
-When entering from a completed Wayfinder map, add a `Wayfinder provenance`
-section to `decision.md` with the map title, URL, and relevant resolved tickets.
-Record `"wayfinder_map_url"` and `"wayfinder_state": "completed"` in
-`meta.json`; link instead of copying resolved-ticket content.
+Check paths, interfaces, dependencies, feasibility, and validation while writing
+the plan. `$execplan-create` can assist with a complex repository plan format;
+`$execplan-improve` is for a concrete uncertainty, stale plan, or difficult
+boundary, not a mandatory pass count. Do not invoke `$grillcraft` as a second
+orchestrator or duplicate the plan in a Goalcraft objective.
 
-`decision.md` and `execplan.md` must record, when relevant:
+For consequential architecture, security/authz, billing, data loss, destructive
+migration, difficult recovery, or unresolved design risk, invoke
+`$adversarial-review` on the plan **before final plan approval**. Include the
+applicable domain/frontend lens in that review, without adding a second event.
+For ordinary bounded work, source-grounded planning is sufficient. Record why
+planning critique was needed or skipped; risk determines useful evidence and
+review depth, not a fixed ceremony for every task.
 
-- worktree path, branch, base ref, and any explicit in-place-work exception
-- domain terms confirmed or changed
-- `CONTEXT.md` updates made or intentionally skipped
-- ADRs created or intentionally skipped
-- modules, interfaces, seams, and adapters touched
-- frontend surfaces, layout decisions, visual states, component paths, design
-  tokens, and responsive behavior to preserve or change
-- test seams selected for TDD
-- validation commands and acceptance criteria
-- frontend validation evidence: check/test/build commands, browser smoke checks,
-  screenshots, or written browser observations when useful
-- compatibility intentionally not preserved, when old behavior or names are
-  removed
+Verify findings and revise the plan. Present the resulting scope, decisions,
+implementation split, risks, and acceptance checks for explicit approval.
+Existing approval suffices if it covers this scope and design. Record the
+approved revision and material decisions; progress updates and editorial fixes
+do not require reapproval. Obtain approval for material changes to agreed
+intent, not routine implementation choices within it.
 
-Record each applicable ADR path and status, or the reason promotion was
-skipped. Keep proposed ADRs aligned with approved intent without copying the
-delivery plan, and include them in the approval summary. After explicit plan
-approval, the planning adversarial review, findings disposition, and any
-required reapproval are complete, perform the acceptance transition defined by
-the ADR Promotion And Lifecycle Contract.
+## 3. Dispatch Smaller Implementation Agents
 
-During improvement, check for shallow wrappers, leaked policy, premature seams,
-internal-only tests, speculative abstractions, unjustified compatibility code,
-and incomplete frontend design states.
+Prefer parallel implementation whenever the approved work has independent,
+bounded tasks with settled interfaces. Use one worker for tightly coupled work;
+do not invent subdivisions merely to fill slots. The main agent owns the split,
+shared contracts, sequencing, and integration instead of doing every coding
+slice itself.
 
-After improvement, the planning agent returns an approval summary with the
-goal, scope, current and target shapes, component or execution flow, milestones,
-decisions and tradeoffs, risk, rollout, rollback, validation, applicable ADRs,
-and a content fingerprint of `decision.md` and `execplan.md`. The main agent
-presents that summary to the user and requires explicit plan approval for the
-current revision. Feedback returns to the same planning agent, which updates
-the authoritative artifacts before returning a revised summary.
+### Model Selection
 
-Do not infer approval from silence, unrelated messages, or earlier approval of
-a different revision. Record the approved revision, fingerprint, and explicit
-approval outcome in `meta.json`.
+- Keep the user-selected capable main model (for example Astra) as orchestrator.
+- Default bounded implementation tasks to `gpt-5.6-luna` when the runtime exposes
+  it, unless the user selected another implementation model. Otherwise select
+  an available smaller coding model and disclose the concrete fallback.
+- Explicitly set worker `model` and supported `reasoning_effort` in the launch
+  API. With the current collaboration tool use `fork_turns: "none"` so the
+  model override is effective. Start with reasoning appropriate to the slice;
+  increase it when the actual difficulty warrants it.
+- If overrides are unavailable, disclose the inherited model and limitation.
+  Record requested/observed model and effort with the task; do not present a
+  requested value as confirmed runtime evidence or claim smaller-model savings
+  when the actual model is unknown.
+- Resolve missing requirements in the main context. If a worker demonstrates
+  a capability limit, give it a concrete correction or smaller scope; escalate
+  the difficult slice to a stronger model when justified. Record why instead
+  of silently upgrading every worker or retrying an unchanged assignment.
 
-Accept the phase only when the authoritative artifacts preserve confirmed
-decisions, contain observable validation, leave `meta.json` at `stage="plan"`
-and `state="completed"`, and have explicit plan approval. Run exactly one planning-boundary adversarial review after planning is complete,
-using the Independent Reviewer Selection contract. If frontend work is in
-scope, its frontend-specific packet consumes this event. Verify each finding,
-fix or disposition valid findings, update the planning artifacts when needed,
-and rerun relevant validation. Never re-invoke the adversarial reviewer for that boundary,
-including after critical or high findings. If a verified finding changes
-user-approved intent, present a revised approval summary and obtain approval
-for that material change without creating another adversarial-review event. The
-planning agent never activates a Goal.
+### Worktree And Task Ownership
 
-### Step 3: Goal And Implementation Agent
+Before launching a task, record in the ExecPlan:
 
-After accepting the planning packet and completing its one adversarial review,
-the main agent invokes `$goalcraft`. Then spawn one persistent implementation
-agent for the explicit work-item path and tell it to invoke
-`$implement-execplan`.
+- task ID, deliverable, owned paths, dependencies, and acceptance checks
+- worker worktree/branch, explicit remote base ref, and resolved starting commit
+- implementation model, effort, and eventual result commit and integration state
 
-The implementation agent sets active state, implements vertical slices, keeps
-the ExecPlan living sections current, validates meaningful slices, records
-blockers, and sets completed state only after planned implementation and
-validation succeed. Route material discoveries through the main agent before
-changing intent.
+Give each concurrent implementation agent its **own worktree and branch**.
+The workspace guard selects the integration checkout; it does not create worker
+isolation. Main creates worker worktrees from explicit starting commits using
+native worktree facilities when available, otherwise Git, following repo rules.
+Workers must not edit the integration checkout, another worker's checkout, or
+the canonical work item. Separate directories do not remove semantic conflicts:
+assign shared interfaces, generated files, lockfiles, and migrations to one owner
+or serialize them. Settle shared contracts before dependent work begins.
 
-Before coding, read applicable accepted ADRs and treat them as implementation
-constraints. A conflict is a decision change, not an implementation detail.
+Seed each task from the recorded integration revision containing its completed
+dependencies. Start independent tasks from the same known revision; dependent
+tasks wait until prerequisites are integrated. Never start a dependent worker
+from stale remote main merely because its worktree is new. Follow the repository's
+explicit-ref rules when creating branches/worktrees and transferring commits.
 
-Before coding, set:
+Provide a compact launch packet: absolute worker path and branch, base commit,
+task scope and owned paths, approved decisions, dependency contracts, relevant
+source, validation commands, allowed mutations, and required result evidence.
+The worker must read the actual source before editing. Supply a task-local work
+item under its own ignored `.agent/work/` directory. Its `execplan.md` contains
+only the assigned task's milestones, owned paths, dependencies, and acceptance
+checks; its `decision.md` preserves the relevant approved constraints. Never
+copy the full parent execution plan into a worker's executable task plan.
+Reference canonical parent artifacts as read-only context. A worker may use
+`$implement-execplan` against its **task-local** work item when its required
+`.agent/PLANS.md` is available there; otherwise execute the task brief directly.
+Never point that skill at the shared work item. Resolve skill paths before
+launch and name the exact path in the packet.
 
-```json
-{
-  "stage": "implementation",
-  "state": "active"
-}
-```
+Retain a worker for its task's fixes while that context remains useful. Schedule
+ready tasks within the runtime's concurrency limit, leaving capacity for main
+coordination. Retire finished contexts using runtime facilities when needed;
+launch new workers only for ready work or a justified replacement. Workers do
+not spawn nested teams, activate goals, change approved intent, or publish.
 
-When blocked, set `stage="implementation"` and `state="blocked"`. When
-complete, set `stage="implementation"` and `state="completed"`. Do not mark
-complete because of elapsed time, budget exhaustion, partial implementation, or
-proxy checks alone.
+## 4. Integrate And Validate
 
-Use `$tdd` at pre-agreed seams where practical. Do not add speculative
-abstractions, compatibility layers, old-name aliases, legacy output adapters,
-or migration shims unless `decision.md` records an explicit requirement.
+Workers implement and validate their assigned behavior, keeping side effects
+visible and avoiding speculative abstractions or compatibility scaffolding.
+Preserve compatibility only when the user, public contracts, production data,
+or rollout requirements demand it. Use `$tdd` when behavioral tests benefit
+from it; do not create test seams or conformance tests that mirror the code.
 
-### Step 4: Review Agents
+Each worker returns its branch/starting commit and result commit(s), changed
+paths, validation commands/results, discoveries, plan deviations, decision-log
+entries, and blockers or residual risks. Use local commits for transfer when
+repository policy permits. If commits are prohibited, return
+an explicit patch including new files. Worker completion means the assigned
+slice is ready for integration, not that the parent feature is complete.
 
-Run exactly one normal closeout review after implementation. The main agent
-selects exactly one normal review skill: `$review-recent-work` for workflow
-closeout or `$code-review` for an explicitly requested formal branch/PR review
-or standards/spec split. They are alternatives, not additive defaults.
+The main agent inspects the diff and evidence, integrates results in dependency
+order, and owns conflict resolution. Check that each result descends from its
+recorded **starting commit**, not just the remote base ref, and stays within its
+assignment before applying it. Reconcile cross-task interfaces and generated
+outputs; delegate bounded repair to a worker at the updated integration revision
+when useful. Never let a
+worker merge concurrent results into the shared integration checkout.
 
-Fix or disposition its verified findings and rerun relevant validation through
-the persistent implementation agent. The closeout reviewer is not the
-implementation adversarial reviewer.
+For repairs after integration, retain useful worker context but assign a fresh
+branch/worktree at the current integration commit containing its prior result.
+Give it an updated task-local plan containing only the repair scope and checks.
+Record that new starting commit and integrate only new commits after it; do not
+reapply the earlier result. Preserve prior worker state until transfer is verified.
 
-Run exactly one implementation-boundary adversarial review after implementation and normal closeout are complete,
-using the Independent Reviewer Selection contract. Review against
-`decision.md`, `execplan.md`, worktree and branch state, `git status --short`,
-`git diff`, applicable accepted ADRs, relevant tests, adjacent code paths, and
-rendered evidence when UI changed. If frontend work is in scope, its
-frontend-specific packet consumes this event and does not add another generic
-adversarial review.
+Run relevant integration checks on the combined result. Worker test passes do
+not establish integrated correctness. Run required repository gates after
+focused checks; broaden or repeat testing only for changed code, failures, or
+unresolved concerns. Keep actual execution evidence separate from proxy checks.
 
-Fix or disposition its verified findings, rerun relevant validation, and finalize
-through the persistent implementation agent. Never re-invoke the adversarial reviewer for that boundary,
-including after critical or high findings. Do not ask an adversarial reviewer
-to spawn more reviewers; reviewer capability may increase for critical work,
-but the event count does not.
+Fold returned discoveries, deviations, and decisions into the canonical plan;
+main checks them against approved intent before accepting the task. Route any
+material intent change through approval. Update progress and integration state.
+On resume, inspect recorded worktrees, commits, Git status, validation, and
+dependencies before scheduling. Preserve finished work; do not replay completed tasks or
+reapply already-integrated commits. If a worker context is lost, reconstruct
+its remaining assignment from artifacts and source rather than restarting the
+whole feature. Record concrete blockers and continue independent ready work.
 
-### Step 5: Human Implementation Briefing
+Activate a native Goal only when the user explicitly requested one and the
+runtime supports it. Reference this work item; the main agent still coordinates
+execution and acceptance. Do not create, replace, or duplicate a Goal merely
+to continue an ordinary implementation request.
 
-After all review findings are dispositioned and final validation succeeds,
-spawn one fresh briefing agent with `fork_turns: "none"` and tell it to invoke
-`$explain-implementation` for the explicit work-item path.
+## 5. Review The Integrated Result
 
-Give it raw final evidence: `decision.md`, `execplan.md`, `meta.json`, the final
-diff or commit, applicable accepted ADRs, source and tests, validation output,
-review findings and dispositions, and rendered evidence when UI changed. Do not
-give it the implementation agent's conversational explanation.
+Run one fresh `$adversarial-review` on the integrated implementation covering
+correctness, design clarity, scope, error handling, tests, and adversarial risks.
+Use its provider-selection and evidence contract, including cross-provider
+review when available. This combines normal closeout and adversarial review;
+do not additionally invoke `$review-recent-work`. An explicitly requested formal
+`$code-review` may fill this review only if it meets the same independent,
+read-only review contract and covers the integrated scope.
 
-The briefing agent writes only:
+Give the reviewer the approved intent, relevant source and adjacent paths, full
+change range including new files, task integration record, validation evidence,
+and applicable ADR/domain/frontend concerns. Use a fresh context with no inherited
+authoring conversation (`fork_turns: "none"` where supported); do not substitute
+the author's conclusions for raw evidence. Reviewer reports; main verifies
+claims; implementation owners fix; main integrates and validates the fixes.
 
-```text
-.agent/work/<slug>/implementation-briefing.html
-```
+Follow the review skill's evidence-based stopping rule. A focused follow-up is
+warranted when changes introduce a new material risk or invalidate reviewed
+evidence. Record the reason and changed surface. Routine corrections need
+relevant validation, not another full review for reassurance.
 
-Require that path to be ignored by Git. Never stage or commit it. Accept the
-phase only when browser validation proves the component map, execution trace,
-retrieval feedback, source links or Lavish copy-path controls, keyboard
-behavior, and responsive layout work and `git status --short` is unchanged.
+Mark the canonical implementation completed only after planned behavior,
+integration validation, and verified review findings are satisfied or explicitly
+dispositioned. Report unavailable review capacity or validation honestly; obtain
+user judgment when a material acceptance decision remains unresolved.
 
-The main agent then opens the rendered page under the Lavish Ownership Contract
-and owns the foreground poll. Forward annotations to the same briefing agent.
-For explanation gaps, the briefing agent updates its evidence model and
-rerenders the same path. A user-ended session completes the ownership loop; do
-not infer comprehension or reopen it uninvited.
+## 6. Explain And Hand Off
 
-This phase transfers context; it is not another review event. If reconstruction
-exposes a material contradiction, route the fix to the persistent
-implementation agent, rerun relevant validation, and regenerate the briefing.
-Never reopen either completed adversarial-review boundary or the normal
-closeout event.
+Explain the final feature lifecycle from its entry point, key decisions, source
+locations, validation, and remaining limitations. Scale detail to the change.
+Use `$explain-implementation` for substantial ownership transfers or when the
+user requests a rich walkthrough. An interactive `$lavish` session is optional
+unless explicitly requested; serving, rendering, and browser mechanics belong
+to the briefing skill.
 
-Return the absolute clickable briefing path before any worktree cleanup and
-state that the local-only artifact disappears with its worktree.
+A missing briefing tool does not undo verified code completion. Report any
+incomplete requested handoff separately and provide the best available
+source-backed explanation. Preserve local briefing/worktree artifacts until
+the user no longer needs them; do not clean up worker state before integration
+and evidence have been verified.
 
-## Fallback Path
+Return the outcome, meaningful validation and review evidence, unresolved risks,
+and relevant source/work-item/briefing links. State actual model routing and
+parallelism when relevant, especially any fallback. Do not dump a phase ledger
+or a list of every optional skill that was unavailable.
 
-Run the effort-shape gate before using this fallback. If it produces a
-Wayfinder handoff, stop there. Otherwise, when native subagents or
-`$grillcraft` are unavailable, the main agent preserves the selected risk tier,
-phase order, alternative closeout review selection, one-improvement standard
-default, and fixed review lifecycle itself:
+## Supporting Skill Resolution
 
-1. `$using-git-worktrees`
-2. `$grill-me` or `$grill-with-docs` using the Step 1 contract
-3. Create `.agent/work/<slug>/decision.md` and `meta.json` with
-   `stage="decision"` and `state="completed"`
-4. `$execplan-create`, followed by exactly one `$execplan-improve` attempt for
-   standard or elevated work, or up to two for critical work
-5. Present an approval summary from `decision.md` and `execplan.md`, apply
-   feedback to the authoritative artifacts, and obtain explicit plan approval
-6. Perform exactly one planning-boundary adversarial review, fix or disposition
-   verified findings, rerun relevant validation, and do not invoke it again
-7. The main agent invokes `$goalcraft`, then `$implement-execplan` using the
-   Step 3 lifecycle contract
-8. Perform exactly one closeout review with `$review-recent-work` or
-   `$code-review`, fix or disposition verified findings, and rerun relevant
-   validation
-9. Perform exactly one implementation-boundary adversarial review, fix or
-   disposition verified findings, rerun relevant validation, and finalize
-   without invoking it again
-10. Invoke `$explain-implementation` for the explicit work item, validate the
-    ignored local briefing through Lavish, complete its ownership loop, and
-    verify Git status is unchanged
-
-If `/goal` is unavailable in the current Codex surface, use
-`$implement-execplan` instead of `$goalcraft` and record the limitation.
-
-Record that context isolation was unavailable and retain all phase-gate and
-review evidence in the work item. Apply the ADR Promotion And Lifecycle Contract
-at the same phase boundaries as the normal path.
-
-## Output
-
-Return:
-
-- current workflow phase
-- effort-shape route and Wayfinder handoff or map status, when applicable
-- risk tier and the plan-improvement and reviewer-capability profiles used
-- worktree path, branch, base ref, and upstream/tracking state
-- work item path
-- artifacts created or updated
-- applicable ADRs, records created or intentionally skipped, lifecycle status,
-  and any supersession
-- explicit plan approval and feedback disposition
-- supporting lenses used or skipped
-- normal closeout and both adversarial-review artifacts and outcomes
-- absolute local implementation-briefing path, Lavish session, and
-  browser-validation outcome
-- current lifecycle state
-- validation run
-- next action or blocker
+Use the registered skill or read its `SKILL.md` from the installed catalog;
+user-owned Codex skills live under `~/.agents/skills`. Resolve its references
+against its own directory. Read only the lenses needed for the current work.
+If a supporting skill is unavailable, carry out this workflow's contract
+directly where possible and disclose any material loss of capability. Keep
+these same owners and gates when working without subagents; no duplicate
+fallback workflow is needed.

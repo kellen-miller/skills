@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill Plan Build"
-  short_description: "Plan, build, review, and transfer ownership"
-  default_prompt: "Use $grill-plan-build to route this effort through its fixed review lifecycle, then finish with a local interactive implementation briefing."
+  short_description: "Plan centrally, build in parallel, review results"
+  default_prompt: "Use $grill-plan-build to resolve the design, plan in the main context, implement with smaller agents in separate worktrees, then validate, independently review, and explain the integrated result."
