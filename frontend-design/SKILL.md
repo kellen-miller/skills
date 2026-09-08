@@ -12,9 +12,13 @@ disposition, and acceptance. Implementation agents own frontend mutation and
 evidence in their assigned worktrees; reviewers remain read-only. Do not assign
 integration or acceptance to an implementation or review worker.
 
-When frontend work is in scope, the parent may select a frontend-specific
-packet for its planning or implementation review. This lens contributes to
-that review and does not create an unconditional or additional review.
+When invoked directly without parent workers, the current agent owns these
+workflow responsibilities and treats the independent reviewer as read-only.
+
+When frontend work is in scope, the parent or current agent may select a
+frontend-specific packet for planning or implementation review. This lens
+contributes to that review and does not create an unconditional or additional
+review.
 
 ## Preconditions
 
@@ -54,10 +58,11 @@ The planning agent identifies:
   closeout
 - validation commands that prove the frontend result
 
-Before plan approval, when the parent selects planning critique for architecture,
-security, data, migration, or other consequential design risk, contribute a
-frontend-specific packet to that review. UI scope alone does not require
-planning critique.
+Before plan approval, honor an explicitly requested plan review. Otherwise,
+when the parent selects planning critique for architecture, security, data,
+migration, or other consequential design risk, contribute a frontend-specific
+packet to that review. UI scope alone does not require automatic planning
+critique.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
 The main workflow agent verifies every finding, directs implementers to fix
@@ -110,9 +115,10 @@ needed but unavailable, record the gap as a blocker or residual risk.
 
 ## Independent Frontend Review
 
-When the parent selects implementation review, gather the diff, planning
-artifacts, rendered evidence, component and token files, and validation output.
-Contribute a frontend-specific lens to that parent-selected independent review,
+When the parent or current agent selects implementation review, gather the diff,
+planning artifacts, rendered evidence, component and token files, and validation
+output.
+Contribute a frontend-specific lens to that selected independent review,
 covering design, ordinary correctness, validation, and adversarial risks in its
 single packet. Use `$adversarial-review`'s provider-selection and status
 contract; do not create a separate review for this lens.

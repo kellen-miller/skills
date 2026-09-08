@@ -19,15 +19,18 @@ read-only: the main agent verifies each claim against repository or runtime
 evidence, directs implementers to fix valid findings, integrates the changes,
 and accepts the result.
 
-Before plan approval, use a planning packet only when architecture, security,
-data, migration, or other consequential design risk warrants critique; UI scope
-alone does not require one. One completed review is the default for a selected
-boundary. A
-focused follow-up is allowed only when concrete changed evidence introduces
-new risk or invalidates the prior conclusion; review that changed surface and
-new evidence instead of repeating the full review. Do not spawn nested
-reviewers by default. Critical risk may increase capability or reasoning
-effort, but does not by itself add reviewers.
+When invoked standalone without parent workers, the current agent owns boundary
+selection, evidence verification, bounded fixes, integration, and acceptance;
+the independent reviewer remains read-only. Before plan approval, honor an
+explicitly requested plan review. If the caller has not selected a review, use
+a planning packet only when architecture, security, data, migration, or other
+consequential design risk warrants critique; UI scope alone does not require
+one. One completed review is the default for a selected boundary. A focused
+follow-up is allowed only when concrete changed evidence introduces new risk or
+invalidates the prior conclusion; review that changed surface and new evidence
+instead of repeating the full review. Do not spawn nested reviewers by default.
+Critical risk may increase capability or reasoning effort, but does not by
+itself add reviewers.
 
 ## Reviewer Selection
 
