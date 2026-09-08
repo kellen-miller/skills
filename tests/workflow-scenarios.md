@@ -54,6 +54,20 @@ Two independent workers pass their local tests. After integration, the combined
 API/client check fails because one result changes a shared response field.
 Finish the feature. Both branches and local test results remain available.
 
+### Task-local execution scope
+
+The approved parent plan has UI, API, and database milestones. Delegate only
+the UI task to a Luna worker using implement-execplan. The repository's
+PLANS.md is available. Prepare its launch packet and task-local artifacts.
+During the task it discovers a mismatch in an approved assumption.
+
+### Repair a previously integrated task
+
+Worker A branched at S and returned commit A1, which main cherry-picked into
+integration as I1. Other tasks are now integrated through I3. Retain A's useful
+context to fix a bug against the combined code, preserving its previous work.
+State its repair workspace, starting commit, return evidence and transfer range.
+
 ## Assessment notes — evaluator only
 
 - Independent work: main retains design/integration; explicitly selected smaller
@@ -71,6 +85,12 @@ Finish the feature. Both branches and local test results remain available.
   acceptance gaps from optional presentation limitations.
 - Integration failure: keep parent incomplete, repair the shared contract,
   revalidate the combined result, and review the final integrated scope.
+- Task scope: the worker's executable plan contains only its assignment;
+  parent milestones remain read-only context. Return discoveries and decision
+  changes so main can reconcile canonical intent and approval.
+- Repair: fresh worker branch/worktree starts at I3 containing the integrated
+  result; return and apply only new commits after that exact starting commit.
+  Prior worker state is preserved, and A1 is not transferred a second time.
 - Across cases: no implicit Goal, no extra ordinary closeout before the combined
   independent review, no interactive session unless requested, no worker writes
   to canonical parent artifacts, and no phase-driven approval repetitions.

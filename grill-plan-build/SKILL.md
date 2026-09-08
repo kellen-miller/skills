@@ -63,7 +63,10 @@ tradeoffs whose rationale matters beyond this work; let `$domain-modeling`
 own authoring and format. Preserve accepted rationale and supersede it with a
 new decision when intent changes. Keep ordinary delivery decisions in the plan.
 
-The main agent writes the canonical work item in the integration worktree:
+In Git repositories, verify `.agent/work/` is ignored in each worktree before
+writing its work items. Use existing rules or a Git-local exclude when needed;
+keep plans, review packets, and briefings out of commits. The main agent writes
+the canonical work item in the integration worktree:
 
 ```text
 .agent/work/<slug>/
@@ -140,6 +143,9 @@ Before launching a task, record in the ExecPlan:
 - implementation model, effort, and eventual result commit and integration state
 
 Give each concurrent implementation agent its **own worktree and branch**.
+The workspace guard selects the integration checkout; it does not create worker
+isolation. Main creates worker worktrees from explicit starting commits using
+native worktree facilities when available, otherwise Git, following repo rules.
 Workers must not edit the integration checkout, another worker's checkout, or
 the canonical work item. Separate directories do not remove semantic conflicts:
 assign shared interfaces, generated files, lockfiles, and migrations to one owner
@@ -154,11 +160,16 @@ explicit-ref rules when creating branches/worktrees and transferring commits.
 Provide a compact launch packet: absolute worker path and branch, base commit,
 task scope and owned paths, approved decisions, dependency contracts, relevant
 source, validation commands, allowed mutations, and required result evidence.
-The worker must read the actual source before editing. Supply task-local copies
-of the needed decision/plan artifacts under its own ignored `.agent/work/`
-directory; canonical parent artifacts remain read-only inputs. A worker may use
-`$implement-execplan` against its **task-local** work item, never the shared one.
-Resolve skill paths before launch and name the exact path in the packet.
+The worker must read the actual source before editing. Supply a task-local work
+item under its own ignored `.agent/work/` directory. Its `execplan.md` contains
+only the assigned task's milestones, owned paths, dependencies, and acceptance
+checks; its `decision.md` preserves the relevant approved constraints. Never
+copy the full parent execution plan into a worker's executable task plan.
+Reference canonical parent artifacts as read-only context. A worker may use
+`$implement-execplan` against its **task-local** work item when its required
+`.agent/PLANS.md` is available there; otherwise execute the task brief directly.
+Never point that skill at the shared work item. Resolve skill paths before
+launch and name the exact path in the packet.
 
 Retain a worker for its task's fixes while that context remains useful. Schedule
 ready tasks within the runtime's concurrency limit, leaving capacity for main
@@ -174,27 +185,36 @@ Preserve compatibility only when the user, public contracts, production data,
 or rollout requirements demand it. Use `$tdd` when behavioral tests benefit
 from it; do not create test seams or conformance tests that mirror the code.
 
-Each worker returns its branch/base and result commit(s), changed paths,
-validation commands/results, and blockers or residual risks. Use local commits
-for transfer when repository policy permits. If commits are prohibited, return
+Each worker returns its branch/starting commit and result commit(s), changed
+paths, validation commands/results, discoveries, plan deviations, decision-log
+entries, and blockers or residual risks. Use local commits for transfer when
+repository policy permits. If commits are prohibited, return
 an explicit patch including new files. Worker completion means the assigned
 slice is ready for integration, not that the parent feature is complete.
 
 The main agent inspects the diff and evidence, integrates results in dependency
 order, and owns conflict resolution. Check that each result descends from its
-recorded base and stays within its assignment before applying it. Reconcile
-cross-task interfaces and generated outputs; delegate bounded repair back to a
-worker seeded with the updated integration revision when useful. Never let a
+recorded **starting commit**, not just the remote base ref, and stays within its
+assignment before applying it. Reconcile cross-task interfaces and generated
+outputs; delegate bounded repair to a worker at the updated integration revision
+when useful. Never let a
 worker merge concurrent results into the shared integration checkout.
+
+For repairs after integration, retain useful worker context but assign a fresh
+branch/worktree at the current integration commit containing its prior result.
+Record that new starting commit and integrate only new commits after it; do not
+reapply the earlier result. Preserve prior worker state until transfer is verified.
 
 Run relevant integration checks on the combined result. Worker test passes do
 not establish integrated correctness. Run required repository gates after
 focused checks; broaden or repeat testing only for changed code, failures, or
 unresolved concerns. Keep actual execution evidence separate from proxy checks.
 
-Update the canonical work item's progress and task integration state. On resume,
-inspect recorded worktrees, commits, Git status, validation, and dependencies
-before scheduling. Preserve finished work; do not replay completed tasks or
+Fold returned discoveries, deviations, and decisions into the canonical plan;
+main checks them against approved intent before accepting the task. Route any
+material intent change through approval. Update progress and integration state.
+On resume, inspect recorded worktrees, commits, Git status, validation, and
+dependencies before scheduling. Preserve finished work; do not replay completed tasks or
 reapply already-integrated commits. If a worker context is lost, reconstruct
 its remaining assignment from artifacts and source rather than restarting the
 whole feature. Record concrete blockers and continue independent ready work.
