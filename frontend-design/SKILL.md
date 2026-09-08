@@ -7,13 +7,14 @@ description: Use when frontend UI, visual design, layout, CSS, responsive behavi
 
 ## Ownership
 
-The current implementation agent owns frontend mutation, integration, browser
-evidence, validation, and the decision to accept verified findings. Do not
-delegate mutation merely because an independent reviewer exists.
+The main workflow agent owns review selection, integration, verified-finding
+disposition, and acceptance. Implementation agents own frontend mutation and
+evidence in their assigned worktrees; reviewers remain read-only. Do not assign
+integration or acceptance to an implementation or review worker.
 
-When frontend work is in scope, both fixed adversarial boundary events use a
-frontend-specific packet. Each packet consumes its corresponding parent event
-instead of creating an additional review.
+When frontend work is in scope, the parent may select a frontend-specific
+packet for its planning or implementation review. This lens contributes to
+that review and does not create an unconditional or additional review.
 
 ## Preconditions
 
@@ -53,21 +54,23 @@ The planning agent identifies:
   closeout
 - validation commands that prove the frontend result
 
-Invoke `$adversarial-review` with a frontend-specific packet after planning is
-complete. This consumes the parent workflow's one planning-boundary adversarial event
-and does not add a second generic adversarial review.
+Before plan approval, when the parent selects planning critique for architecture,
+security, data, migration, or other consequential design risk, contribute a
+frontend-specific packet to that review. UI scope alone does not require
+planning critique.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
-Verify every finding, fix or disposition valid findings, and rerun relevant
-validation. Rejected recommendations must be ignored; do not carry them forward
-as noise. Never re-invoke the adversarial reviewer for that boundary.
+The main workflow agent verifies every finding, directs implementers to fix
+valid findings, and reruns relevant validation. Rejected recommendations must
+be ignored; do not carry them forward as noise.
 
 ## Implementation Pass
 
-The current implementation agent writes the frontend code directly, uses the
-existing design system and tokens, implements applicable loading, empty, error,
-disabled, permission, mobile, and dense-data states, and gathers evidence after
-editing.
+Implementation agents write frontend code in their assigned worktrees, use the
+existing design system and tokens, implement applicable loading, empty, error,
+disabled, permission, mobile, and dense-data states, and gather evidence after
+editing. Return the evidence to the main workflow agent for integration and
+acceptance.
 
 Before editing:
 
@@ -107,13 +110,17 @@ needed but unavailable, record the gap as a blocker or residual risk.
 
 ## Independent Frontend Review
 
-After implementation and the normal closeout review are complete, gather the
-diff, planning artifacts, rendered evidence, component and token files, and
-validation output. Invoke `$adversarial-review` once with a frontend-specific
-lens. This consumes the parent workflow's one implementation-boundary adversarial event
-and does not add a second generic adversarial review. Use its provider-selection
-and status contract. The implementation owner verifies every finding before
-changing code.
+When the parent selects implementation review, gather the diff, planning
+artifacts, rendered evidence, component and token files, and validation output.
+Contribute a frontend-specific lens to that parent-selected independent review,
+covering design, ordinary correctness, validation, and adversarial risks in its
+single packet. Use `$adversarial-review`'s provider-selection and status
+contract; do not create a separate review for this lens.
+
+The main workflow agent verifies every finding, directs implementers to fix
+valid issues, integrates the result, and accepts it. Follow-up review is
+allowed only when concrete changed evidence introduces risk or invalidates the
+prior conclusion, and must stay focused on the changed surface.
 
 Ask the reviewer to look for serious issues in:
 
@@ -123,8 +130,7 @@ Ask the reviewer to look for serious issues in:
 - mismatch between plan, implementation, screenshots, and validation evidence
 - unnecessary backwards compatibility or legacy UI noise
 
-Fix or disposition valid findings, rerun relevant validation, and finalize.
-Never re-invoke the adversarial reviewer for that boundary, including after
-critical or high findings.
+The main workflow agent fixes or dispositions valid findings through the
+implementation agents, reruns relevant validation, and finalizes.
 
 Do not preserve backwards compatibility unless the plan explicitly requires it.
