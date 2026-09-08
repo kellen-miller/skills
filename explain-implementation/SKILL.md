@@ -148,9 +148,10 @@ The renderer:
 - embeds all data, CSS, and JavaScript into one HTML file
 - fails if rendering changes Git status
 
-Keep the temporary rendering directory only through the ownership session so
-feedback can update the evidence model and rerender the same page. Remove it
-when the session is complete.
+Keep the temporary rendering directory through rendering and validation, and
+through any requested feedback so the evidence model can update and rerender
+the same page. Remove it after handoff when no feedback was requested, or after
+the requested session completes or is reported unavailable or blocked.
 
 ## Optional Lavish Ownership Session
 
@@ -173,8 +174,10 @@ The main agent owns every foreground poll and forwards feedback to this same
 briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
 Never invoke `lavish-axi share`; the implementation evidence remains local.
 A poll timeout means no new feedback; it is not user-ended session completion.
-Recover interruptions when possible, and report any inability to continue.
-Stop only when the user explicitly ends the requested session.
+Keep polling while the requested session remains available. Recover
+interruptions when possible; do not retry a failed start, resume, or recovery
+indefinitely. Report an unavailable or blocked session and return the HTML when
+the documented path cannot continue. User-ended completion is a separate state.
 
 ## Validate The Experience
 
@@ -206,8 +209,9 @@ Use annotations and structured actions to distinguish:
 - a browser `layout_warnings` result: repair and recheck before asking the human
   to continue
 
-Poll again after each feedback batch. Stop when the user ends the requested
-session, and do not reopen a user-ended session without a new explicit request.
+Poll again after each feedback batch while the requested session remains
+available. Stop on explicit user end, or report unavailable or blocked when the
+session cannot continue; do not label either failure state user-ended.
 
 Lavish annotates the ownership session without becoming part of the generated
 file. The single-file artifact boundary remains because it is the local
