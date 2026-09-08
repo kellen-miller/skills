@@ -9,16 +9,12 @@ description: Use when frontend UI, visual design, layout, CSS, responsive behavi
 
 The main workflow agent owns review selection, integration, verified-finding
 disposition, and acceptance. Implementation agents own frontend mutation and
-evidence in their assigned worktrees; reviewers remain read-only. Do not assign
-integration or acceptance to an implementation or review worker.
+evidence in assigned worktrees; reviewers remain read-only. When invoked
+directly without parent workers, the current agent owns these responsibilities.
+Do not assign integration or acceptance to a worker.
 
-When invoked directly without parent workers, the current agent owns these
-workflow responsibilities and treats the independent reviewer as read-only.
-
-When frontend work is in scope, the parent or current agent may select a
-frontend-specific packet for planning or implementation review. This lens
-contributes to that review and does not create an unconditional or additional
-review.
+The parent or current agent selects any frontend-specific review packet. This
+lens contributes to that review and schedules none.
 
 ## Preconditions
 
@@ -58,11 +54,9 @@ The planning agent identifies:
   closeout
 - validation commands that prove the frontend result
 
-Before plan approval, honor an explicitly requested plan review. Otherwise,
-when the parent selects planning critique for architecture, security, data,
-migration, or other consequential design risk, contribute a frontend-specific
-packet to that review. UI scope alone does not require automatic planning
-critique.
+Contribute frontend planning evidence when the parent or current agent selects
+a plan review. Follow the parent scheduling and `$adversarial-review` contract;
+this lens does not schedule planning critique.
 
 Accepted recommendations must be reflected in `decision.md` or `execplan.md`.
 The main workflow agent verifies every finding, directs implementers to fix
@@ -124,9 +118,9 @@ single packet. Use `$adversarial-review`'s provider-selection and status
 contract; do not create a separate review for this lens.
 
 The main workflow agent verifies every finding, directs implementers to fix
-valid issues, integrates the result, and accepts it. Follow-up review is
-allowed only when concrete changed evidence introduces risk or invalidates the
-prior conclusion, and must stay focused on the changed surface.
+valid issues, integrates the result, and accepts it. Any repeat review follows
+the parent scheduling and `$adversarial-review` contract, uses changed evidence,
+and is never scheduled by this lens.
 
 Ask the reviewer to look for serious issues in:
 
