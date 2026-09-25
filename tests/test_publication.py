@@ -17,6 +17,8 @@ EXPECTED_IDS = {
     "useful-codex-skills",
     "mattpocock-skills",
     "lavish-axi",
+    "aws-agent-toolkit",
+    "azure-skills",
 }
 ALLOWED_FILES = {
     ".gitignore",

@@ -93,3 +93,125 @@ dependencies:
       mode: explicit
       include:
         - {source: skills/lavish, destination: lavish}
+  - id: aws-agent-toolkit
+    url: https://github.com/aws/agent-toolkit-for-aws.git
+    sparse: [skills]
+    selection:
+      mode: explicit
+      include:
+        - {source: skills/core-skills/amazon-bedrock, destination: amazon-bedrock}
+        - {source: skills/core-skills/aws-ai-ml, destination: aws-ai-ml}
+        - {source: skills/core-skills/aws-auth, destination: aws-auth}
+        - {source: skills/core-skills/aws-billing-and-cost-management, destination: aws-billing-and-cost-management}
+        - {source: skills/core-skills/aws-blocks, destination: aws-blocks}
+        - {source: skills/core-skills/aws-cdk, destination: aws-cdk}
+        - {source: skills/core-skills/aws-cloudformation, destination: aws-cloudformation}
+        - {source: skills/core-skills/aws-compute, destination: aws-compute}
+        - {source: skills/core-skills/aws-containers, destination: aws-containers}
+        - {source: skills/core-skills/aws-database, destination: aws-database}
+        - {source: skills/core-skills/aws-deployment, destination: aws-deployment}
+        - {source: skills/core-skills/aws-iam, destination: aws-iam}
+        - {source: skills/core-skills/aws-messaging-and-streaming, destination: aws-messaging-and-streaming}
+        - {source: skills/core-skills/aws-networking, destination: aws-networking}
+        - {source: skills/core-skills/aws-observability, destination: aws-observability}
+        - {source: skills/core-skills/aws-sdk-js-v3-usage, destination: aws-sdk-js-v3-usage}
+        - {source: skills/core-skills/aws-sdk-python-usage, destination: aws-sdk-python-usage}
+        - {source: skills/core-skills/aws-sdk-swift-usage, destination: aws-sdk-swift-usage}
+        - {source: skills/core-skills/aws-security, destination: aws-security}
+        - {source: skills/core-skills/aws-serverless, destination: aws-serverless}
+        - {source: skills/core-skills/aws-storage, destination: aws-storage}
+        - {source: skills/core-skills/aws-well-architected-review, destination: aws-well-architected-review}
+        - {source: skills/core-skills/launch-with-aws, destination: launch-with-aws}
+        - {source: skills/core-skills/setting-up-cloudwatch-observability, destination: setting-up-cloudwatch-observability}
+        - {source: skills/core-skills/signing-in-to-aws, destination: signing-in-to-aws}
+        - {source: skills/specialized-skills/analytics-skills/amazon-opensearch-service, destination: amazon-opensearch-service}
+        - {source: skills/specialized-skills/analytics-skills/aws-cleanrooms, destination: aws-cleanrooms}
+        - {source: skills/specialized-skills/analytics-skills/connecting-to-data-source, destination: connecting-to-data-source}
+        - {source: skills/specialized-skills/analytics-skills/developing-applications-on-managed-service-for-apache-flink, destination: developing-applications-on-managed-service-for-apache-flink}
+        - {source: skills/specialized-skills/analytics-skills/exploring-data-catalog, destination: exploring-data-catalog}
+        - {source: skills/specialized-skills/analytics-skills/finding-data-lake-assets, destination: finding-data-lake-assets}
+        - {source: skills/specialized-skills/analytics-skills/ingesting-into-data-lake, destination: ingesting-into-data-lake}
+        - {source: skills/specialized-skills/analytics-skills/managing-amazon-kinesis-data-streams, destination: managing-amazon-kinesis-data-streams}
+        - {source: skills/specialized-skills/analytics-skills/managing-amazon-msk, destination: managing-amazon-msk}
+        - {source: skills/specialized-skills/analytics-skills/migrate-to-msk, destination: migrate-to-msk}
+        - {source: skills/specialized-skills/analytics-skills/migrating-to-amazon-redshift, destination: migrating-to-amazon-redshift}
+        - {source: skills/specialized-skills/analytics-skills/querying-data-lake, destination: querying-data-lake}
+        - {source: skills/specialized-skills/analytics-skills/redshift-guide, destination: redshift-guide}
+        - {source: skills/specialized-skills/aws-marketplace-skills/aws-marketplace-metering, destination: aws-marketplace-metering}
+        - {source: skills/specialized-skills/database-skills/amazon-aurora-mysql, destination: amazon-aurora-mysql}
+        - {source: skills/specialized-skills/database-skills/amazon-aurora-postgresql, destination: amazon-aurora-postgresql}
+        - {source: skills/specialized-skills/database-skills/amazon-documentdb, destination: amazon-documentdb}
+        - {source: skills/specialized-skills/database-skills/amazon-dynamodb, destination: amazon-dynamodb}
+        - {source: skills/specialized-skills/database-skills/amazon-elasticache, destination: amazon-elasticache}
+        - {source: skills/specialized-skills/database-skills/amazon-keyspaces, destination: amazon-keyspaces}
+        - {source: skills/specialized-skills/database-skills/amazon-neptune, destination: amazon-neptune}
+        - {source: skills/specialized-skills/database-skills/aurora-dsql, destination: aurora-dsql}
+        - {source: skills/specialized-skills/database-skills/creating-amazon-aurora-db-cluster-with-instances, destination: creating-amazon-aurora-db-cluster-with-instances}
+        - {source: skills/specialized-skills/database-skills/exporting-rds-to-s3, destination: exporting-rds-to-s3}
+        - {source: skills/specialized-skills/database-skills/rds-db2, destination: rds-db2}
+        - {source: skills/specialized-skills/database-skills/rds-oracle, destination: rds-oracle}
+        - {source: skills/specialized-skills/database-skills/rds-oss, destination: rds-oss}
+        - {source: skills/specialized-skills/database-skills/rds-sqlserver, destination: rds-sqlserver}
+        - {source: skills/specialized-skills/database-skills/timestream-influxdb, destination: timestream-influxdb}
+        - {source: skills/specialized-skills/ec2-skills/amazon-ec2-image-builder, destination: amazon-ec2-image-builder}
+        - {source: skills/specialized-skills/ec2-skills/launching-ec2-instance-with-best-practices, destination: launching-ec2-instance-with-best-practices}
+        - {source: skills/specialized-skills/ec2-skills/setting-up-ec2-instance-profiles, destination: setting-up-ec2-instance-profiles}
+        - {source: skills/specialized-skills/end-user-computing-skills/amazon-workspaces-agent-access, destination: amazon-workspaces-agent-access}
+        - {source: skills/specialized-skills/messaging-and-streaming-skills/amazon-ses, destination: amazon-ses}
+        - {source: skills/specialized-skills/messaging-and-streaming-skills/aws-sms-voice, destination: aws-sms-voice}
+        - {source: skills/specialized-skills/messaging-and-streaming-skills/aws-social-messaging, destination: aws-social-messaging}
+        - {source: skills/specialized-skills/migration-and-modernization-skills/aws-transform, destination: aws-transform}
+        - {source: skills/specialized-skills/migration-and-modernization-skills/dms-schema-conversion, destination: dms-schema-conversion}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/cloudfront, destination: cloudfront}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/configuring-vpc-endpoints-for-private-aws-service-access, destination: configuring-vpc-endpoints-for-private-aws-service-access}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/connecting-vpcs-with-peering, destination: connecting-vpcs-with-peering}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/creating-production-vpc-multi-az, destination: creating-production-vpc-multi-az}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/directconnect, destination: directconnect}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/enabling-lambda-vpc-internet-access, destination: enabling-lambda-vpc-internet-access}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/route53, destination: route53}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/routing-traffic-with-route53-and-cloudfront, destination: routing-traffic-with-route53-and-cloudfront}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/shieldadvanced, destination: shieldadvanced}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/sitetositevpn, destination: sitetositevpn}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/transitgateway, destination: transitgateway}
+        - {source: skills/specialized-skills/networking-and-content-delivery-skills/waf, destination: waf}
+        - {source: skills/specialized-skills/operations-skills/aws-network-monitoring, destination: aws-network-monitoring}
+        - {source: skills/specialized-skills/operations-skills/setting-up-cloudtrail-multi-region, destination: setting-up-cloudtrail-multi-region}
+        - {source: skills/specialized-skills/operations-skills/setting-up-cloudwatch-alarm-notifications, destination: setting-up-cloudwatch-alarm-notifications}
+        - {source: skills/specialized-skills/operations-skills/troubleshooting-application-failures, destination: troubleshooting-application-failures}
+        - {source: skills/specialized-skills/quantum-computing-skills/amazon-braket, destination: amazon-braket}
+        - {source: skills/specialized-skills/resilience-skills/arc-region-switch, destination: arc-region-switch}
+        - {source: skills/specialized-skills/resilience-skills/aws-fault-injection-service, destination: aws-fault-injection-service}
+        - {source: skills/specialized-skills/resilience-skills/aws-resilience-lifecycle, destination: aws-resilience-lifecycle}
+        - {source: skills/specialized-skills/resilience-skills/recovery-controller-setup, destination: recovery-controller-setup}
+        - {source: skills/specialized-skills/resilience-skills/resilience-hub-failure-mode-assessment, destination: resilience-hub-failure-mode-assessment}
+        - {source: skills/specialized-skills/resilience-skills/resilience-hub-getting-started, destination: resilience-hub-getting-started}
+        - {source: skills/specialized-skills/resilience-skills/resilience-hub-multi-account, destination: resilience-hub-multi-account}
+        - {source: skills/specialized-skills/resilience-skills/resilience-program-design, destination: resilience-program-design}
+        - {source: skills/specialized-skills/security-and-identity-skills/creating-secrets-using-best-practices, destination: creating-secrets-using-best-practices}
+        - {source: skills/specialized-skills/serverless-skills/amazon-eventbridge-event-bus, destination: amazon-eventbridge-event-bus}
+        - {source: skills/specialized-skills/serverless-skills/aws-lambda-durable-functions, destination: aws-lambda-durable-functions}
+        - {source: skills/specialized-skills/serverless-skills/aws-lambda-managed-instances, destination: aws-lambda-managed-instances}
+        - {source: skills/specialized-skills/serverless-skills/aws-lambda-microvms, destination: aws-lambda-microvms}
+        - {source: skills/specialized-skills/serverless-skills/aws-step-functions, destination: aws-step-functions}
+        - {source: skills/specialized-skills/serverless-skills/connecting-lambda-to-api-gateway, destination: connecting-lambda-to-api-gateway}
+        - {source: skills/specialized-skills/serverless-skills/connecting-lambda-to-dynamodb, destination: connecting-lambda-to-dynamodb}
+        - {source: skills/specialized-skills/serverless-skills/creating-api-gateway-stage, destination: creating-api-gateway-stage}
+        - {source: skills/specialized-skills/serverless-skills/debugging-lambda-timeouts, destination: debugging-lambda-timeouts}
+        - {source: skills/specialized-skills/serverless-skills/deploying-custom-domain-rest-api, destination: deploying-custom-domain-rest-api}
+        - {source: skills/specialized-skills/serverless-skills/processing-s3-uploads-with-step-functions, destination: processing-s3-uploads-with-step-functions}
+        - {source: skills/specialized-skills/storage-skills/creating-data-lake-table, destination: creating-data-lake-table}
+        - {source: skills/specialized-skills/storage-skills/securing-s3-buckets, destination: securing-s3-buckets}
+        - {source: skills/specialized-skills/storage-skills/storing-and-querying-vectors, destination: storing-and-querying-vectors}
+        - {source: skills/specialized-skills/storage-skills/troubleshooting-efs, destination: troubleshooting-efs}
+        - {source: skills/specialized-skills/storage-skills/troubleshooting-s3-files, destination: troubleshooting-s3-files}
+        - {source: skills/specialized-skills/system-table-skills/querying-aws-cloudwatch, destination: querying-aws-cloudwatch}
+        - {source: skills/specialized-skills/system-table-skills/querying-aws-redshift, destination: querying-aws-redshift}
+        - {source: skills/specialized-skills/system-table-skills/querying-aws-s3, destination: querying-aws-s3}
+        - {source: skills/specialized-skills/system-table-skills/querying-aws-sagemaker-catalog, destination: querying-aws-sagemaker-catalog}
+        - {source: skills/specialized-skills/web-and-mobile-development/aws-amplify, destination: aws-amplify}
+  - id: azure-skills
+    url: https://github.com/microsoft/azure-skills.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
