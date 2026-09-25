@@ -19,6 +19,8 @@ EXPECTED_IDS = {
     "lavish-axi",
     "aws-agent-toolkit",
     "azure-skills",
+    "redpanda-skills",
+    "grafana-gcx",
 }
 ALLOWED_FILES = {
     ".gitignore",

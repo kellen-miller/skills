@@ -215,3 +215,15 @@ dependencies:
     selection:
       mode: discovery
       root: skills
+  - id: redpanda-skills
+    url: https://github.com/redpanda-data/skills.git
+    sparse: [skills]
+    selection:
+      mode: discovery
+      root: skills
+  - id: grafana-gcx
+    url: https://github.com/grafana/gcx.git
+    sparse: [claude-plugin/skills]
+    selection:
+      mode: discovery
+      root: claude-plugin/skills
