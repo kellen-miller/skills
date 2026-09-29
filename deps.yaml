@@ -75,7 +75,6 @@ dependencies:
         - {source: skills/engineering/improve-codebase-architecture, destination: improve-codebase-architecture}
         - {source: skills/engineering/prototype, destination: prototype}
         - {source: skills/engineering/research, destination: research}
-        - {source: skills/engineering/resolving-merge-conflicts, destination: resolving-merge-conflicts}
         - {source: skills/engineering/setup-matt-pocock-skills, destination: setup-matt-pocock-skills}
         - {source: skills/engineering/tdd, destination: tdd}
         - {source: skills/engineering/to-spec, destination: to-spec}
