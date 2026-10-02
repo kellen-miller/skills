@@ -121,7 +121,7 @@ dependencies:
         - {source: skills/core-skills/aws-storage, destination: aws-storage}
         - {source: skills/core-skills/aws-well-architected-review, destination: aws-well-architected-review}
         - {source: skills/core-skills/launch-with-aws, destination: launch-with-aws}
-        - {source: skills/core-skills/setting-up-cloudwatch-observability, destination: setting-up-cloudwatch-observability}
+        - {source: skills/specialized-skills/operations-skills/setting-up-cloudwatch-observability, destination: setting-up-cloudwatch-observability}
         - {source: skills/core-skills/signing-in-to-aws, destination: signing-in-to-aws}
         - {source: skills/specialized-skills/analytics-skills/amazon-opensearch-service, destination: amazon-opensearch-service}
         - {source: skills/specialized-skills/analytics-skills/aws-cleanrooms, destination: aws-cleanrooms}
