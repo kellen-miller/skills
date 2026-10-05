@@ -201,6 +201,7 @@ Use the committed lockfile for all local checks:
 
 ```sh
 uv sync --locked
+uv run --locked yamllint --strict .
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked python -m unittest discover -s tests -v

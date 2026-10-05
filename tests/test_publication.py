@@ -23,6 +23,7 @@ EXPECTED_IDS = {
 }
 ALLOWED_FILES = {
     ".gitignore",
+    ".yamllint",
     "LICENSE",
     "README.md",
     "deps.yaml",
