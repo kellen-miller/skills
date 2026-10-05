@@ -1,4 +1,4 @@
 interface:
-  display_name: "Implementation Briefing"
-  short_description: "Brief a substantial completed implementation"
-  default_prompt: "Use $explain-implementation to build a standalone, source-backed briefing; use Lavish only when explicitly requested."
+  display_name: "Explain Implementation"
+  short_description: "Explain the implementation visually in its PR"
+  default_prompt: "Use $explain-implementation to draft a source-backed visual PR explanation with behavioral evidence and merge risk."

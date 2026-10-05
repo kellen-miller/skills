@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dispatch Tickets"
+  short_description: "Run task graphs through portable isolated CLI workers"
+  default_prompt: "Use $dispatch-tickets to preview and execute the approved task graph through configured CLI workers, retaining validation and recovery evidence."

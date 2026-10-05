@@ -17,6 +17,11 @@ The installation directory is intentionally a symlink to the checkout. That
 keeps authored files editable, managed dependencies reproducible, and every
 agent runtime on the machine pointed at the same skill tree.
 
+`grill-plan-build` coordinates design, investigation, and task decomposition.
+`dispatch-tickets` runs an approved graph through configurable CLI workers in
+isolated worktrees, retaining validation and recovery evidence.
+`explain-implementation` provides the visual explanation in the PR itself.
+
 ## Requirements
 
 - Git
