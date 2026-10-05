@@ -1,6 +1,6 @@
 # Workflow behavioral checks
 
-Use these cases when changing grill-plan-build or its review/briefing contracts.
+Use these cases when changing grill-plan-build or its dispatch/review/PR explanation contracts.
 Run each in a fresh context with the candidate skill and the minimum stated
 repository facts. Do not give the evaluating agent the assessment notes below.
 Ask it for the next actions and assignments; do not authorize real deployment,
@@ -31,8 +31,8 @@ Source and schema are accessible. Do not execute deletion against production.
 ### Changed evidence after review
 
 The implementation passed its tests and independent review. A subsequent fix
-replaces permission evaluation with a new cache. Finish the change. Lavish is
-unavailable; no interactive briefing or Goal was requested.
+replaces permission evaluation with a new cache. Finish the change. No standalone briefing or Goal was requested; explain the final lifecycle in
+the authorized PR with observed evidence.
 
 ### Resume interrupted work
 
@@ -68,6 +68,21 @@ integration as I1. Other tasks are now integrated through I3. Retain A's useful
 context to fix a bug against the combined code, preserving its previous work.
 State its repair workspace, starting commit, return evidence and transfer range.
 
+### Portable CLI loop
+
+Use grill-plan-build to implement an approved three-ticket graph. Tickets A and
+B own disjoint paths; C depends on A. The worktree is clean. Codex and Claude
+CLIs are available, and I want Claude for A, Codex for B and C. CLI permissions
+and authentication are already configured. Run a deterministic local loop;
+do not publish tracker issues. Open a visual PR after validation and review.
+
+### Failed integration checks
+
+Ticket A has merged but combined checks failed. Ticket B depends on A and has
+not started. Diagnose the failure, preserve all work, and resume using the
+recorded graph. The failure was an environment prerequisite, now restored;
+no code or approved scope changed. Do not implement or merge A again.
+
 ## Assessment notes — evaluator only
 
 - Independent work: main retains design/integration; explicitly selected smaller
@@ -95,6 +110,15 @@ State its repair workspace, starting commit, return evidence and transfer range.
   independent review, no interactive session unless requested, no worker writes
   to canonical parent artifacts, and no phase-driven approval repetitions.
 
-Keep executable renderer, publication, and dependency tests in the normal
+- Portable loop: select dispatch-tickets, preview the approved immutable graph,
+  use explicit provider commands per ticket, and let the script own scheduling,
+  local commits, serial merges, and checks. Main retains review and publication.
+  Evidence in the PR distinguishes fixture checks from live model execution.
+- Integration recovery: inspect retained state and logs, restore the prerequisite,
+  explicitly retry A's checks, and unblock B only after combined checks pass.
+  Do not create another implementation attempt for the already merged result.
+
+
+Keep executable dispatcher, publication, and dependency tests in the normal
 suite. Do not replace these scenarios with assertions that a heading, model
 name, or required phrase merely appears in Markdown.

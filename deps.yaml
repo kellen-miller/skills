@@ -72,9 +72,12 @@ dependencies:
         - {source: skills/engineering/domain-modeling, destination: domain-modeling}
         - {source: skills/engineering/grill-with-docs, destination: grill-with-docs}
         - {source: skills/engineering/implement, destination: implement}
+        - {source: skills/engineering/implement-spec, destination: implement-spec}
         - {source: skills/engineering/improve-codebase-architecture, destination: improve-codebase-architecture}
         - {source: skills/engineering/prototype, destination: prototype}
+        - {source: skills/engineering/pr, destination: pr}
         - {source: skills/engineering/research, destination: research}
+        - {source: skills/engineering/retro, destination: retro}
         - {source: skills/engineering/setup-matt-pocock-skills, destination: setup-matt-pocock-skills}
         - {source: skills/engineering/tdd, destination: tdd}
         - {source: skills/engineering/to-spec, destination: to-spec}
@@ -85,13 +88,6 @@ dependencies:
         - {source: skills/productivity/handoff, destination: handoff}
         - {source: skills/productivity/teach, destination: teach}
         - {source: skills/productivity/writing-for-agents, destination: writing-for-agents}
-  - id: lavish-axi
-    url: https://github.com/kunchenguid/lavish-axi.git
-    sparse: [skills/lavish]
-    selection:
-      mode: explicit
-      include:
-        - {source: skills/lavish, destination: lavish}
   - id: aws-agent-toolkit
     url: https://github.com/aws/agent-toolkit-for-aws.git
     sparse: [skills]

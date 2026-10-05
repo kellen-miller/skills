@@ -1,233 +1,60 @@
 ---
 name: explain-implementation
 description: >-
-  Use when a completed implementation needs a substantial ownership transfer or
-  the user explicitly requests an implementation briefing, code walkthrough,
-  or ownership guide.
+  Use when a completed implementation needs an ownership transfer, a visual
+  PR explanation, or a source-backed walkthrough of its lifecycle and decisions.
 ---
 
 # Explain Implementation
 
-## Core Contract
+Explain the final implementation visually in the PR body. Start with the
+concrete trigger and resulting behavior, then show the lifecycle from its main
+entry point. Scale the explanation to the change; a small fix needs little prose.
 
-Transfer implementation ownership to the human when this substantial briefing
-is warranted. Reconstruct the final system from source evidence and render one
-self-contained interactive briefing at:
+## Reconstruct From Evidence
 
-```text
-.agent/work/<slug>/implementation-briefing.html
-```
+Read the approved intent, final diff including new files, entry points and
+adjacent callers, relevant tests, execution output, and review dispositions.
+Prefer final source over planned source. Explain deviations only when they
+help a reviewer understand the resulting design. Use the repository's glossary
+and architectural decisions when present.
 
-Treat the page as a local human artifact:
+A fresh explanation context can help for a substantial implementation. Give it
+source and evidence pointers, not the author's conclusions. It drafts the PR
+body; the main agent verifies it and owns publication. This is explanation,
+not another mandatory review event.
 
-- require the target path to be ignored by Git
-- never stage or commit the page
-- create no sidecar files in the work item
-- keep Git status unchanged
-- state that removing the worktree removes the page
+## Draft The PR Body
 
-The renderer remains the deterministic content boundary for schema, source, and
-Git-state validation. The HTML is valuable as a standalone local artifact and
-may be opened directly. Lavish is an optional annotation interface used only
-when the user explicitly requests that session; it does not replace the HTML
-artifact or determine whether the implementation is complete.
+Read `$pr` for its Summary, Evidence, and Merge Danger structure. If unavailable,
+use those three sections directly. Respect the repository's PR template.
 
-Routine changes do not require this skill. The parent workflow can explain a
-source-backed lifecycle, verification, and limitations in its final response;
-use this richer artifact for substantial ownership transfers or an explicit
-briefing request.
+- **Summary:** choose the smallest visual that explains the change: a call tree,
+  before/after diff sketch, component/file tree, pseudocode, or Mermaid. Put
+  brief prose next to it. Show ownership and side-effect ordering; include an
+  important failure or recovery path when it changes the behavior. For a larger
+  ownership transfer, explain consequential decisions and where a maintainer
+  would change the feature next. Link verified source paths or symbols.
+- **Evidence:** map the claimed behavior to observed before/after output,
+  relevant tests, or UI screenshots. Distinguish execution from source inspection
+  and simulated checks. Never invent a failing baseline, screenshot, or test run.
+  Say when a baseline or requested validation is unavailable.
+- **Merge Danger:** explain reversibility (one-way or two-way door), affected
+  surfaces, and any rollout, recovery, or remaining limitation that affects review.
 
-Do not write a decorated diff summary. Explain the feature lifecycle from its
-main entry point, then progressively expose boundaries, execution paths,
-decisions, change recipes, proof, and retrieval questions.
+Use committed GitHub source links in published PRs; local absolute file links
+are for chat. Avoid copying large code blocks that obscure the lifecycle.
+Do not add quizzes, HTML artifacts, annotation servers, or a separate briefing
+workflow. The PR itself is the durable visual explanation.
 
-## Input Resolution
+## Verify And Publish Within Scope
 
-Prefer an explicit `.agent/work/<slug>/` path. When invoked directly without
-one, select the most recently updated work item whose `meta.json` records
-`stage="implementation"` and `state="completed"`.
+Check the explanation against the final source, validation, and review evidence.
+If reconstruction finds a material contradiction, return it to the implementation
+owner for a bounded fix and relevant validation; update the explanation afterward.
+Reopen review only when changed evidence introduces material risk.
 
-Require:
-
-- a Git repository
-- an ignored `.agent/work/<slug>/` target
-- `decision.md`, `execplan.md`, and `meta.json`
-- a completed implementation state
-
-If the work item and observable implementation do not overlap, stop and report
-the mismatch. Do not explain unrelated recent changes.
-
-## Fresh Reconstruction
-
-For a substantial ownership transfer, a parent workflow should run this skill in
-one fresh context with no inherited implementation conversation. Give it:
-
-- repository and worktree paths
-- branch and base ref
-- explicit work-item path
-- final diff or commit evidence
-- final validation output
-- review findings and their dispositions
-- rendered evidence when UI changed
-
-The briefing agent may write only the ignored HTML output and temporary
-rendering input. It is not another review event. If reconstruction reveals a
-material code or artifact contradiction, return it to the implementation owner
-and rerun relevant validation. Perform focused review only when the
-contradiction creates new risk or invalidates prior evidence; otherwise
-regenerate the briefing without reopening completed review boundaries. If a
-fresh explanation context is unavailable, the current agent can perform the
-reconstruction directly.
-
-## Reconstruct The Implementation
-
-Read `decision.md`, `execplan.md`, and `meta.json`, then inspect:
-
-- `git status --short`
-- the final diff or completed commit
-- files named by the work item
-- entry points and adjacent callers
-- domain types, boundaries, and side effects
-- tests that establish behavior
-- configuration, migrations, rollout, and operational surfaces
-- final validation and review evidence
-
-Prefer final code over planned code. Record plan deviations when they help the
-human understand the resulting shape.
-
-Keep side effects visible. Explain network calls, database writes, goroutines,
-queues, stream waits, retries, and fallbacks at the step where they occur.
-
-Ground every important claim in a repository-relative source reference with a
-path and, when useful, a symbol and line number. Do not invent a source,
-invariant, test, failure path, or operational behavior.
-
-## Build The Briefing
-
-Read [references/briefing-schema.md](references/briefing-schema.md) completely.
-Create valid schema-version `2` JSON in a temporary OS directory outside the
-repository.
-
-The content must provide:
-
-1. A thirty-second orientation with why, before, after, entry point, and key
-   concepts.
-2. A component map organized by ownership rather than by changed-file list.
-3. A happy-path trace and at least one important failure, retry, or edge path
-   when one exists.
-4. Decisions and tradeoffs that explain the final shape.
-5. Change recipes for likely maintenance tasks.
-6. Behavioral proof mapped to tests, commands, and observed evidence.
-7. At least three retrieval questions, including one failure prediction and one
-   "where would you change this?" question.
-8. Known limits and a glossary when they add real value.
-
-Use concise source excerpts only when the exact syntax is essential. Prefer
-links to source over copied code that will go stale.
-
-Do not claim that the user understands material merely because the page covers
-it. The questions expose gaps; they do not create learning records.
-
-## Render
-
-Resolve paths against this skill directory and run:
-
-```bash
-python3 scripts/render_briefing.py \
-  --input <temporary-briefing.json> \
-  --output <repo>/.agent/work/<slug>/implementation-briefing.html \
-  --repo-root <repo>
-```
-
-The renderer:
-
-- validates the briefing schema and cross-references
-- verifies that every source reference resolves to a real repository file
-- resolves live branch, HEAD, tree state, and snapshot fingerprint
-- requires the exact ignored output location
-- embeds all data, CSS, and JavaScript into one HTML file
-- fails if rendering changes Git status
-
-Keep the temporary rendering directory through rendering and validation, and
-through any requested feedback so the evidence model can update and rerender
-the same page. Remove it after handoff when no feedback was requested, or after
-the requested session completes or is reported unavailable or blocked.
-
-## Optional Lavish Ownership Session
-
-Start this section only after the user explicitly requests an annotated Lavish
-session. Read `$lavish`, then run its current CLI help for the installed
-invocation; do not hardcode a package version. Keep telemetry disabled and the
-server on loopback. The current command shape is:
-
-```bash
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi <briefing-path>
-LAVISH_AXI_TELEMETRY=0 npx -y lavish-axi poll <briefing-path> \
-  --agent-reply "The briefing is ready; start with the orientation and flow."
-```
-
-If the documented invocation cannot start or resume the session, report the
-Lavish session as unavailable and provide the standalone HTML path. This does
-not negate verified implementation or HTML-rendering evidence.
-
-The main agent owns every foreground poll and forwards feedback to this same
-briefing agent. Do not use `&`, `nohup`, or an unobserved background process.
-Never invoke `lavish-axi share`; the implementation evidence remains local.
-A poll timeout means no new feedback; it is not user-ended session completion.
-Keep polling while the requested session remains available. Recover
-interruptions when possible; do not retry a failed start, resume, or recovery
-indefinitely. Report an unavailable or blocked session and return the HTML when
-the documented path cannot continue. User-ended completion is a separate state.
-
-## Validate The Experience
-
-When browser tooling is available, verify the rendered page (through Lavish when
-requested, otherwise by opening the local HTML directly):
-
-- no console errors
-- the first render explains the feature without interaction
-- selecting a component updates its ownership details
-- changing flows and stepping forward and backward updates the trace
-- a retrieval answer produces correct feedback and source evidence
-- keyboard focus and controls work
-- the layout remains readable at approximately 390px and 1280px widths
-- source links point at real repository files; Lavish mode exposes a working
-  copy-path control when its HTTP iframe cannot open `file://` links
-- `git status --short` matches its pre-render state
-
-If browser tooling is unavailable, report that browser validation is unverified;
-this does not negate code completion or the renderer’s checks. Fix the skill
-output or evidence and rerender when available validation fails.
-Use annotations and structured actions to distinguish:
-
-- an explanation gap: update the temporary evidence model and rerender the same
-  HTML path
-- a source question: answer with the exact repository reference and improve the
-  page when the explanation was insufficient
-- a material contradiction: return it to the implementation owner, rerun
-  relevant validation, and regenerate the briefing
-- a browser `layout_warnings` result: repair and recheck before asking the human
-  to continue
-
-Poll again after each feedback batch while the requested session remains
-available. Stop on explicit user end, or report unavailable or blocked when the
-session cannot continue; do not label either failure state user-ended.
-
-Lavish annotates the ownership session without becoming part of the generated
-file. The single-file artifact boundary remains because it is the local
-evidence artifact the worktree owns.
-
-## Return
-
-Report:
-
-- the absolute clickable briefing path
-- the work item and source snapshot
-- which flows and maintenance recipes it covers
-- browser and Git-status validation
-- Lavish ownership-session outcome when explicitly requested, or that it was
-  not requested
-- any evidence gaps or reconstruction blocker
-- whether an explicitly requested briefing or session remains incomplete,
-  reported separately from implementation completion
-- that the artifact is local-only and disappears with its worktree
+Create or update the PR only when already authorized. Otherwise return the draft
+body in chat; missing publication permission does not block explaining the work.
+Report the PR link, meaningful checks, and material limitations. Do not treat
+writing an explanation as proof that the implementation is correct.

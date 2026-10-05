@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill Plan Build"
-  short_description: "Plan centrally, build in parallel, review results"
-  default_prompt: "Use $grill-plan-build to resolve the design, plan in the main context, implement with smaller agents in separate worktrees, then validate, independently review, and explain the integrated result."
+  short_description: "Decompose plans, dispatch workers, explain in PRs"
+  default_prompt: "Use $grill-plan-build to resolve intent, investigate in parallel, decompose an executable task graph, dispatch isolated workers, validate and independently review integration, then explain the result visually in its PR."

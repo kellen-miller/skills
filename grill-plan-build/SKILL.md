@@ -9,275 +9,203 @@ description: >-
 
 # Grill Plan Build
 
-Resolve intent, write an executable plan, implement through smaller agents,
-validate the integrated result, obtain independent review, and explain it.
-The user-selected main model owns grilling, planning, coordination, integration,
-and acceptance. Keep those decisions with the capable main model; delegate
-bounded coding work to smaller models in separate worktrees.
+Resolve intent, investigate, decompose the plan, dispatch bounded implementation
+workers, validate and independently review the integrated result, then explain
+it visually in the PR. The main agent owns user decisions, design, canonical
+artifacts, integration policy, and acceptance. Workers own explicit assignments.
 
-User instructions and existing authorization take precedence over skill
-preferences. Preserve approved decisions; ask only about unresolved judgments
-that could materially change the result. Do not restart grilling or approval
-merely because a phase or agent changed.
+User instructions and existing authorization take precedence. Reuse approved
+scope and decisions; ask only about unresolved judgments or material changes.
+Phase changes, worker changes, and routine implementation choices do not require
+new approval. Workflow invocation does not authorize deployment or unrelated
+external writes.
 
 ## 1. Establish Scope And Workspace
 
-Inspect the relevant source, repository instructions, Git state, and applicable
-ADRs before proposing a design. Distinguish unresolved planning from a large
-implementation whose design is already settled.
+Inspect relevant source, repository instructions, Git state, and applicable
+ADRs. Distinguish unresolved design from a large but already settled change.
+For planning that spans sessions because major decisions remain unresolved,
+propose a destination and ask the user to invoke `$wayfinder`. Reuse active or
+completed maps and their decisions rather than starting a competing plan.
 
-If major unresolved decisions or investigations make planning span sessions,
-propose a destination and ask the user to invoke `$wayfinder`; do not create
-its map or start implementation. For an active map, return to its open tickets
-or in-scope fog. For a completed map, reuse its destination and linked decisions
-without re-grilling them. Keep the map URL in the work item when applicable.
+Select an isolated integration worktree, reusing the current managed worktree
+when appropriate. `$using-git-worktrees` can assist when available. Honor an
+explicit in-place instruction and preserve unrelated changes. Record branch,
+explicit remote base ref, resolved starting commit, and actual upstream. Follow
+repository branch rules; never infer push safety from the starting branch.
 
-Use `$using-git-worktrees` to select an isolated integration worktree before
-writing artifacts or source. Reuse the current managed worktree if already
-isolated; preserve the primary checkout and unrelated changes. Honor an
-explicit in-place instruction. Inspect and record branch, base ref, starting
-commit, and upstream rather than assuming tracking is safe. Follow repository
-branch and publication rules; workflow invocation does not authorize deployment
-or unrelated external writes.
+## 2. Grill And Investigate
 
-If Git or delegation is unavailable, retain the same decision, validation,
-and acceptance responsibilities locally and disclose the actual limitation.
-Do not simulate isolation or claim parallel execution that did not occur.
+Keep the user interview and final design with the main agent. Read `$grill-me`
+for unresolved intent, tradeoffs, failure behavior, and scope; reuse existing
+specs and decision ledgers instead of re-grilling accepted decisions.
 
-## 2. Grill And Plan In The Main Context
+Delegate independent, bounded investigations when they materially reduce
+planning uncertainty: trace a subsystem, inspect an external contract, find
+validation seams, or map shared state. Give each investigator a concrete
+question and evidence scope. It returns source pointers, findings, uncertainties,
+and suggested boundaries; it does not interview the user or decide scope.
 
-The main agent invokes `$grill-me`, inspects discoverable facts itself, and
-asks the user about unresolved intent, tradeoffs, failure behavior, and scope.
-Reuse an existing approved spec or decision ledger. Do not relay each question
-through a separate grill agent or create a new planning agent by default.
+Persist useful research under the ignored work item, with one owner per note.
+Investigators inspect source without editing product code. Main reconciles
+conflicting findings and validates assumptions before dependent design work.
+Do not create a second planning orchestrator or parallelize tightly coupled
+questions merely to fill slots.
 
-Apply supporting lenses only when they change the work:
+Apply `$domain-modeling` for terminology, lifecycle, ownership, and durable ADRs;
+`$codebase-design` for module boundaries; `$frontend-design` for UI behavior and
+rendered evidence. `$grill-with-docs` may combine domain modeling and grilling.
+Promote only durable architectural tradeoffs to ADRs; keep delivery decisions
+in the plan. Resolve supporting skill paths before delegation.
 
-- `$domain-modeling` for unclear terminology, lifecycle, ownership, or ADRs;
-  `$grill-with-docs` may combine this with grilling when available.
-- `$codebase-design` for module boundaries and public interfaces.
-- `$frontend-design` for UI shape, interaction states, and browser evidence.
+## 3. Plan And Decompose
 
-Honor existing ADR conventions. Promote only durable, non-obvious architectural
-tradeoffs whose rationale matters beyond this work; let `$domain-modeling`
-own authoring and format. Preserve accepted rationale and supersede it with a
-new decision when intent changes. Keep ordinary delivery decisions in the plan.
-
-In Git repositories, verify `.agent/work/` is ignored in each worktree before
-writing its work items. Use existing rules or a Git-local exclude when needed;
-keep plans, review packets, and briefings out of commits. The main agent writes
-the canonical work item in the integration worktree:
+Verify `.agent/work/` is Git-ignored before writing canonical artifacts:
 
 ```text
 .agent/work/<slug>/
-  decision.md
-  execplan.md
-  meta.json
+  decision.md       # user decisions, assumptions, non-goals, approval provenance
+  execplan.md       # final behavior, architecture, task index, progress, acceptance
+  meta.json        # stage/state and artifact paths
+  research/        # useful source-backed investigation notes, when needed
+  tasks/<id>.md    # one bounded executable brief per implementation task
+  tickets.json     # dispatcher graph when using scripted execution
 ```
 
-- `decision.md`: objective, confirmed user decisions, assumptions, non-goals,
-  material risks, and approval/provenance. Distinguish user decisions from
-  agent recommendations. Link relevant ADRs or completed Wayfinder decisions.
-- `execplan.md`: intended behavior, source-grounded changes, ordered milestones,
-  task ownership/dependencies, observable acceptance checks, and rollout or
-  recovery when relevant. Keep progress, discoveries, and decision changes
-  current. Follow the repository's `.agent/PLANS.md` when present.
-- `meta.json`: lifecycle (`stage`, `state`) and explicit artifact paths. Use
-  `stage="plan"` while planning, then `stage="implementation"` while executing;
-  use `state="active"`, `"blocked"`, or `"completed"` according to evidence.
+Keep one parent plan and one task index. Follow `.agent/PLANS.md` when present.
+Use `stage="plan"`, then `stage="implementation"`; record evidence-backed
+`state="active"`, `"blocked"`, or `"completed"`. Decision records distinguish
+user choices from recommendations. `$execplan-create` can assist with the repo's
+format; `$execplan-improve` addresses concrete uncertainty, not a pass quota.
 
-Check paths, interfaces, dependencies, feasibility, and validation while writing
-the plan. `$execplan-create` can assist with a complex repository plan format;
-`$execplan-improve` is for a concrete uncertainty, stale plan, or difficult
-boundary, not a mandatory pass count. Do not invoke `$grillcraft` as a second
-orchestrator or duplicate the plan in a Goalcraft objective.
+### Make Tasks Executable
 
-For consequential architecture, security/authz, billing, data loss, destructive
-migration, difficult recovery, or unresolved design risk, invoke
-`$adversarial-review` on the plan **before final plan approval**. Include the
-applicable domain/frontend lens in that review, without adding a second event.
-For ordinary bounded work, source-grounded planning is sufficient. Record why
-planning critique was needed or skipped; risk determines useful evidence and
-review depth, not a fixed ceremony for every task.
+Split into independently demonstrable or verifiable behavior slices, sized for
+one fresh worker context. Prefer a narrow end-to-end path over backend/frontend/
+tests as separate tickets. Refactors may instead follow a coherent seam or an
+expand/migrate/contract sequence when that keeps intermediate states usable.
+Use one task when splitting would add coordination without independent progress.
 
-Verify findings and revise the plan. Present the resulting scope, decisions,
-implementation split, risks, and acceptance checks for explicit approval.
-Existing approval suffices if it covers this scope and design. Record the
-approved revision and material decisions; progress updates and editorial fixes
-do not require reapproval. Obtain approval for material changes to agreed
-intent, not routine implementation choices within it.
+Each task records:
 
-## 3. Dispatch Smaller Implementation Agents
+- stable ID, concrete deliverable, and observable acceptance checks
+- prerequisites by task ID, with the contract each dependency supplies
+- owned paths and any shared interface, generated-file, lockfile, or migration owner
+- approved constraints, relevant source/research pointers, and validation commands
+- status, assigned worktree/branch, actual starting commit, and returned evidence
 
-Prefer parallel implementation whenever the approved work has independent,
-bounded tasks with settled interfaces. Use one worker for tightly coupled work;
-do not invent subdivisions merely to fill slots. The main agent owns the split,
-shared contracts, sequencing, and integration instead of doing every coding
-slice itself.
+A task is ready only when prerequisites are integrated and verified, interfaces
+are settled, ownership is non-conflicting, and its brief is sufficient to execute.
+Check the graph for unknown dependencies, cycles, unnecessary blocking edges,
+and tasks too broad for one context. Explain which tasks can run together and
+which must serialize. A worker's executable brief contains only its assignment;
+the parent plan and shared decisions are read-only pointers.
 
-### Model Selection
+`$to-tickets` is an alternative for explicitly requested tracker publication,
+not a prerequisite for a local graph. Do not publish issues merely to distribute
+work. The dispatcher graph is an executable projection of the approved task index;
+keep it consistent when scope changes, rather than maintaining competing plans.
 
-- Keep the user-selected capable main model (for example Astra) as orchestrator.
-- Default bounded implementation tasks to `gpt-5.6-luna` when the runtime exposes
-  it, unless the user selected another implementation model. Otherwise select
-  an available smaller coding model and disclose the concrete fallback.
-- Explicitly set worker `model` and supported `reasoning_effort` in the launch
-  API. With the current collaboration tool use `fork_turns: "none"` so the
-  model override is effective. Start with reasoning appropriate to the slice;
-  increase it when the actual difficulty warrants it.
-- If overrides are unavailable, disclose the inherited model and limitation.
-  Record requested/observed model and effort with the task; do not present a
-  requested value as confirmed runtime evidence or claim smaller-model savings
-  when the actual model is unknown.
-- Resolve missing requirements in the main context. If a worker demonstrates
-  a capability limit, give it a concrete correction or smaller scope; escalate
-  the difficult slice to a stronger model when justified. Record why instead
-  of silently upgrading every worker or retrying an unchanged assignment.
+For consequential architecture, auth, billing, data loss, migrations, recovery,
+or unresolved design risk, use `$adversarial-review` on the concrete plan before
+final approval. Main verifies findings and revises it. Ordinary bounded work
+needs source-grounded planning, without mandatory extra critique. Present scope,
+implementation split, risks, and acceptance together for approval; existing
+approval suffices when it covers this design.
 
-### Worktree And Task Ownership
+## 4. Dispatch And Integrate
 
-Before launching a task, record in the ExecPlan:
+Prefer `$dispatch-tickets` for repeated ticket distribution. Its script validates
+the task graph, launches ready workers within capacity, persists scheduling and
+integration evidence, and serializes integration. Use an explicitly configured
+worker command and model supported by the runtime. Start with its read-only
+preview. Commit the approved source baseline before running its isolated workers.
 
-- task ID, deliverable, owned paths, dependencies, and acceptance checks
-- worker worktree/branch, explicit remote base ref, and resolved starting commit
-- implementation model, effort, and eventual result commit and integration state
+The script owns routine dispatch and Git transfer; the main agent owns design
+changes, failure diagnosis, integration acceptance, and user communication.
+Monitor progress without replaying the scheduling algorithm in prose. Do not
+run `$implement-spec` or `$grillcraft` as another orchestrator over the same graph.
+`implement-spec` remains a user-invoked alternative when scripted execution is
+not wanted, not a nested dispatcher.
 
-Give each concurrent implementation agent its **own worktree and branch**.
-The workspace guard selects the integration checkout; it does not create worker
-isolation. Main creates worker worktrees from explicit starting commits using
-native worktree facilities when available, otherwise Git, following repo rules.
-Workers must not edit the integration checkout, another worker's checkout, or
-the canonical work item. Separate directories do not remove semantic conflicts:
-assign shared interfaces, generated files, lockfiles, and migrations to one owner
-or serialize them. Settle shared contracts before dependent work begins.
+When the user selects desktop-native subagents or no CLI runner is available, retain
+the same graph and responsibilities. Main assigns only ready tasks, supplies
+absolute workspace/branch/base-commit pointers and task-local briefs, and
+integrates one result at a time. Report the actual fallback. Do not claim
+scripted scheduling, model overrides, or parallelism that did not occur.
 
-Seed each task from the recorded integration revision containing its completed
-dependencies. Start independent tasks from the same known revision; dependent
-tasks wait until prerequisites are integrated. Never start a dependent worker
-from stale remote main merely because its worktree is new. Follow the repository's
-explicit-ref rules when creating branches/worktrees and transferring commits.
+### Model And Workspace Ownership
 
-Provide a compact launch packet: absolute worker path and branch, base commit,
-task scope and owned paths, approved decisions, dependency contracts, relevant
-source, validation commands, allowed mutations, and required result evidence.
-The worker must read the actual source before editing. Supply a task-local work
-item under its own ignored `.agent/work/` directory. Its `execplan.md` contains
-only the assigned task's milestones, owned paths, dependencies, and acceptance
-checks; its `decision.md` preserves the relevant approved constraints. Never
-copy the full parent execution plan into a worker's executable task plan.
-Reference canonical parent artifacts as read-only context. A worker may use
-`$implement-execplan` against its **task-local** work item when its required
-`.agent/PLANS.md` is available there; otherwise execute the task brief directly.
-Never point that skill at the shared work item. Resolve skill paths before
-launch and name the exact path in the packet.
+Keep the user-selected main model for design and acceptance. Honor explicit
+worker choices; otherwise use a runtime-supported smaller coding model for
+bounded tasks and disclose the selection. Research or difficult slices may
+need a stronger model. Do not hardcode stale model IDs. With native model
+overrides, use a fresh context (`fork_turns: "none"` when required). Record
+requested model/effort separately from runtime-confirmed evidence.
 
-Retain a worker for its task's fixes while that context remains useful. Schedule
-ready tasks within the runtime's concurrency limit, leaving capacity for main
-coordination. Retire finished contexts using runtime facilities when needed;
-launch new workers only for ready work or a justified replacement. Workers do
-not spawn nested teams, activate goals, change approved intent, or publish.
+Each concurrent implementation worker gets its own worktree and branch from
+an exact integration commit containing its completed prerequisites. Never
+seed dependent work from stale remote main. Assign shared mutable surfaces to
+one owner or serialize conflicting tasks, even when separate worktrees exist.
+Workers read actual source before editing, use `$tdd` when useful, and validate
+observable behavior without test-only indirection or tests mirroring the code.
 
-## 4. Integrate And Validate
+Workers do not alter canonical artifacts, integrate other workers' results,
+change approved scope, spawn competing orchestration teams, or publish. Git
+commit ownership follows the selected executor: the scripted loop commits and
+merges; native workers may return local commits or an explicit patch including
+new files. Never mix those transfer protocols within one task.
 
-Workers implement and validate their assigned behavior, keeping side effects
-visible and avoiding speculative abstractions or compatibility scaffolding.
-Preserve compatibility only when the user, public contracts, production data,
-or rollout requirements demand it. Use `$tdd` when behavioral tests benefit
-from it; do not create test seams or conformance tests that mirror the code.
+### Accept Results And Handle Failure
 
-Each worker returns its branch/starting commit and result commit(s), changed
-paths, validation commands/results, discoveries, plan deviations, decision-log
-entries, and blockers or residual risks. Use local commits for transfer when
-repository policy permits. If commits are prohibited, return
-an explicit patch including new files. Worker completion means the assigned
-slice is ready for integration, not that the parent feature is complete.
+Verify changed paths, starting-commit ancestry, validation output, and returned
+risks before accepting a result. Integrate in dependency order and run checks
+on the combined source; worker test passes do not prove integrated correctness.
+Only verified integration unblocks dependents. Update the canonical task index
+from executor evidence.
 
-The main agent inspects the diff and evidence, integrates results in dependency
-order, and owns conflict resolution. Check that each result descends from its
-recorded **starting commit**, not just the remote base ref, and stays within its
-assignment before applying it. Reconcile cross-task interfaces and generated
-outputs; delegate bounded repair to a worker at the updated integration revision
-when useful. Never let a
-worker merge concurrent results into the shared integration checkout.
+On failure, retain logs and worktrees, pause dependent tasks, and continue
+independent work only when the failure does not invalidate shared assumptions.
+Main resolves scope/contract issues; workers receive bounded fixes against the
+current integration revision. Never blindly retry an unchanged failure or
+reapply an integrated result. Resume by reconciling Git and durable state first.
+Reconstruct lost worker context from its remaining brief rather than restarting
+the parent feature. Repairs to integrated work are new tasks at the current tip.
 
-For repairs after integration, retain useful worker context but assign a fresh
-branch/worktree at the current integration commit containing its prior result.
-Give it an updated task-local plan containing only the repair scope and checks.
-Record that new starting commit and integrate only new commits after it; do not
-reapply the earlier result. Preserve prior worker state until transfer is verified.
+Activate a native Goal only when explicitly requested. Do not create a Goal
+merely to persist or continue this workflow.
 
-Run relevant integration checks on the combined result. Worker test passes do
-not establish integrated correctness. Run required repository gates after
-focused checks; broaden or repeat testing only for changed code, failures, or
-unresolved concerns. Keep actual execution evidence separate from proxy checks.
+## 5. Review And Explain In The PR
 
-Fold returned discoveries, deviations, and decisions into the canonical plan;
-main checks them against approved intent before accepting the task. Route any
-material intent change through approval. Update progress and integration state.
-On resume, inspect recorded worktrees, commits, Git status, validation, and
-dependencies before scheduling. Preserve finished work; do not replay completed tasks or
-reapply already-integrated commits. If a worker context is lost, reconstruct
-its remaining assignment from artifacts and source rather than restarting the
-whole feature. Record concrete blockers and continue independent ready work.
+Run one fresh `$adversarial-review` on the integrated implementation, covering
+correctness, design clarity, scope, error handling, validation, and applicable
+risk. Follow its provider-selection and evidence contract. An explicitly
+requested `$code-review` may fill this event if it meets the same independent,
+read-only contract. Do not add a separate ordinary closeout review.
 
-Activate a native Goal only when the user explicitly requested one and the
-runtime supports it. Reference this work item; the main agent still coordinates
-execution and acceptance. Do not create, replace, or duplicate a Goal merely
-to continue an ordinary implementation request.
+Provide approved intent, raw source/diff including new files, task integration
+records, validation evidence, and relevant domain/frontend concerns. Main
+verifies findings, assigns bounded fixes, and validates the resulting source.
+A focused follow-up is warranted only when changed evidence introduces material
+risk or invalidates reviewed evidence; no full-review loop for reassurance.
 
-## 5. Review The Integrated Result
+Use `$explain-implementation` and `$pr` to make the PR the visual handoff:
+smallest useful lifecycle diagram or diff sketch, consequential decisions,
+source pointers, before/after execution evidence, and merge danger. For larger
+changes include where a maintainer would change the feature next. Publish only
+when authorized; otherwise return the draft body in chat. Explanation gaps do
+not undo verified implementation completion.
 
-Run one fresh `$adversarial-review` on the integrated implementation covering
-correctness, design clarity, scope, error handling, tests, and adversarial risks.
-Use its provider-selection and evidence contract, including cross-provider
-review when available. This combines normal closeout and adversarial review;
-do not additionally invoke `$review-recent-work`. An explicitly requested formal
-`$code-review` may fill this review only if it meets the same independent,
-read-only review contract and covers the integrated scope.
-
-Give the reviewer the approved intent, relevant source and adjacent paths, full
-change range including new files, task integration record, validation evidence,
-and applicable ADR/domain/frontend concerns. Use a fresh context with no inherited
-authoring conversation (`fork_turns: "none"` where supported); do not substitute
-the author's conclusions for raw evidence. Reviewer reports; main verifies
-claims; implementation owners fix; main integrates and validates the fixes.
-
-Follow the review skill's evidence-based stopping rule. A focused follow-up is
-warranted when changes introduce a new material risk or invalidate reviewed
-evidence. Record the reason and changed surface. Routine corrections need
-relevant validation, not another full review for reassurance.
-
-Mark the canonical implementation completed only after planned behavior,
-integration validation, and verified review findings are satisfied or explicitly
-dispositioned. Report unavailable review capacity or validation honestly; obtain
-user judgment when a material acceptance decision remains unresolved.
-
-## 6. Explain And Hand Off
-
-Explain the final feature lifecycle from its entry point, key decisions, source
-locations, validation, and remaining limitations. Scale detail to the change.
-Use `$explain-implementation` for substantial ownership transfers or when the
-user requests a rich walkthrough. An interactive `$lavish` session is optional
-unless explicitly requested; serving, rendering, and browser mechanics belong
-to the briefing skill.
-
-A missing briefing tool does not undo verified code completion. Report any
-incomplete requested handoff separately and provide the best available
-source-backed explanation. Preserve local briefing/worktree artifacts until
-the user no longer needs them; do not clean up worker state before integration
-and evidence have been verified.
-
-Return the outcome, meaningful validation and review evidence, unresolved risks,
-and relevant source/work-item/briefing links. State actual model routing and
-parallelism when relevant, especially any fallback. Do not dump a phase ledger
-or a list of every optional skill that was unavailable.
+Mark completed only when approved behavior, integrated checks, and verified
+review findings are satisfied or explicitly dispositioned. Return the PR link,
+meaningful validation, actual execution/model routing, and material limitations.
+Keep `$retro` user-invoked; do not automatically mutate steering files after
+finishing the feature. Preserve worker evidence until transfer is verified.
 
 ## Supporting Skill Resolution
 
-Use the registered skill or read its `SKILL.md` from the installed catalog;
-user-owned Codex skills live under `~/.agents/skills`. Resolve its references
-against its own directory. Read only the lenses needed for the current work.
-If a supporting skill is unavailable, carry out this workflow's contract
-directly where possible and disclose any material loss of capability. Keep
-these same owners and gates when working without subagents; no duplicate
-fallback workflow is needed.
+Read registered supporting skills from their installed paths; personal skills
+live under `~/.agents/skills`. Resolve references relative to each skill. If a
+supporting capability is unavailable, carry out this contract directly where
+possible and disclose the material limitation, retaining the same owners and
+acceptance boundaries.
