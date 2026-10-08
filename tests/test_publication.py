@@ -28,6 +28,7 @@ ALLOWED_FILES = {
     "README.md",
     "deps.yaml",
     "pyproject.toml",
+    "renovate.json",
     "uv.lock",
 }
 ALLOWED_PREFIXES = (
