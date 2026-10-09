@@ -7,6 +7,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_IDS = {
+    "deburr",
     "superpowers",
     "terraform-skill",
     "cloudflare-skills",

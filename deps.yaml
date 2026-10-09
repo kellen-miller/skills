@@ -1,5 +1,15 @@
 version: 1
 dependencies:
+  - id: deburr
+    url: https://github.com/kellen-miller/deburr.git
+    ref: main
+    sparse:
+      - skills/deburr
+    selection:
+      mode: explicit
+      include:
+        - source: skills/deburr
+          destination: deburr
   - id: superpowers
     url: https://github.com/obra/superpowers.git
     sparse:
