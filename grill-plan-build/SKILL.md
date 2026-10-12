@@ -9,10 +9,12 @@ description: >-
 
 # Grill Plan Build
 
-Resolve intent, investigate, decompose the plan, dispatch bounded implementation
+Resolve intent, investigate, create and improve an ExecPlan, derive its task
+graph, and activate a Goal for execution. Dispatch bounded implementation
 workers, validate and independently review the integrated result, then explain
 it visually in the PR. The main agent owns user decisions, design, canonical
-artifacts, integration policy, and acceptance. Workers own explicit assignments.
+artifacts, Goal lifecycle, integration policy, and acceptance. Workers own
+explicit assignments.
 
 User instructions and existing authorization take precedence. Reuse approved
 scope and decisions; ask only about unresolved judgments or material changes.
@@ -72,11 +74,26 @@ Verify `.agent/work/` is Git-ignored before writing canonical artifacts:
   tickets.json     # dispatcher graph when using scripted execution
 ```
 
-Keep one parent plan and one task index. Follow `.agent/PLANS.md` when present.
-Use `stage="plan"`, then `stage="implementation"`; record evidence-backed
-`state="active"`, `"blocked"`, or `"completed"`. Decision records distinguish
-user choices from recommendations. `$execplan-create` can assist with the repo's
-format; `$execplan-improve` addresses concrete uncertainty, not a pass quota.
+Keep one parent ExecPlan and one task index. The main agent invokes the planning
+skills in this order before implementation:
+
+1. Write `decision.md`, distinguishing user choices from recommendations, and
+   initialize `meta.json` with `stage="decision"`, `state="completed"` once
+   intent is resolved.
+2. Invoke `$execplan-create` for this explicit work item. Follow its repository
+   `.agent/PLANS.md` contract, including installing its template when absent.
+3. Invoke `$execplan-improve` once on the resulting plan, grounded in actual
+   source, interfaces, dependencies, and acceptance checks. Honor its `skip`
+   result; repeat only for material discoveries or a user-requested pass count.
+4. Derive and validate the task graph below from that improved plan. Reconcile
+   any decomposition findings into the same ExecPlan before approval.
+
+Keep the ExecPlan's Progress, Surprises & Discoveries, Decision Log, and Outcomes
+& Retrospective current during execution. Use `stage="plan"`, then
+`stage="implementation"`; record evidence-backed state. A planning skill's
+`state="completed"` means its artifact is ready, not that the user approved it
+or execution may begin. On resume, reuse an existing approved ExecPlan and graph;
+do not recreate or re-improve them merely because the context changed.
 
 ### Make Tasks Executable
 
@@ -104,16 +121,53 @@ the parent plan and shared decisions are read-only pointers.
 `$to-tickets` is an alternative for explicitly requested tracker publication,
 not a prerequisite for a local graph. Do not publish issues merely to distribute
 work. The dispatcher graph is an executable projection of the approved task index;
-keep it consistent when scope changes, rather than maintaining competing plans.
+keep the projection consistent before execution. Once a dispatcher run exists,
+its graph and briefs are immutable. For changed scope or repairs, create a new
+graph for remaining work at the verified integration revision; preserve prior
+run evidence and never replay completed tasks. Update the canonical task index
+to point to the new graph rather than maintaining competing plans.
 
 For consequential architecture, auth, billing, data loss, migrations, recovery,
 or unresolved design risk, use `$adversarial-review` on the concrete plan before
 final approval. Main verifies findings and revises it. Ordinary bounded work
 needs source-grounded planning, without mandatory extra critique. Present scope,
-implementation split, risks, and acceptance together for approval; existing
-approval suffices when it covers this design.
+implementation split, risks, acceptance, and proposed Goal activation together
+for approval. Existing approval suffices for the design it covers; reuse explicit
+Goal authorization too. For work that includes Goal activation, design approval
+alone is not Goal authorization: if the user has not requested or approved
+activation, obtain that permission without reopening settled design choices.
+Planning-only, draft-only, and no-Goal requests retain their boundaries.
 
-## 4. Dispatch And Integrate
+## 4. Create Goal, Dispatch And Integrate
+
+### Launch Through Goalcraft
+
+After plan approval and explicit Goal authorization, the main agent invokes
+`$goalcraft` to create and activate the execution Goal. This is a standard phase
+of the full workflow, not an optional helper based on estimated task difficulty.
+For planning-only, draft-only, or no-Goal work, skip activation; prepare a Goal
+draft only when requested. Do not infer authorization from implicit skill
+selection or silence.
+
+Give Goalcraft a compact brief referencing the absolute work-item path,
+`decision.md`, `execplan.md`, task index, and dispatcher graph when present.
+The objective directs the main agent to execute the approved ExecPlan through
+that graph, preserve constraints, reconcile progress, diagnose failures, and
+continue through integrated validation, independent review, and the authorized
+handoff. Completion requires that evidence, not merely successful worker exits
+or a finished dispatcher run. Let Goalcraft validate the objective and activate
+it through the available native Goal surface; record its identifier when exposed.
+
+The Goal supplies persistence and completion criteria. The task graph supplies
+dependency order; the selected executor below owns scheduling and Git transfer.
+Do not launch another executor from Goalcraft or give workers separate Goals.
+On resume, inspect and reuse a matching unfinished Goal. Do not replace an
+unrelated unfinished Goal without explicit authorization; report the conflict
+and retain the validated objective. Follow the runtime's Goal status rules.
+If native Goals are unavailable or activation fails, report that limitation,
+retain the validated objective, and continue already-authorized implementation
+unless the user required active Goal execution. Never claim activation succeeded
+without tool evidence.
 
 Prefer `$dispatch-tickets` for repeated ticket distribution. Its script validates
 the task graph, launches ready workers within capacity, persists scheduling and
@@ -164,16 +218,15 @@ on the combined source; worker test passes do not prove integrated correctness.
 Only verified integration unblocks dependents. Update the canonical task index
 from executor evidence.
 
-On failure, retain logs and worktrees, pause dependent tasks, and continue
-independent work only when the failure does not invalidate shared assumptions.
+On failure, retain logs and worktrees. The scripted executor stops its workers;
+main diagnoses and reconciles state before restarting it. Pause dependent tasks;
+resume independent work only when supported by the executor and when the failure
+does not invalidate shared assumptions. Never edit run state to bypass failure.
 Main resolves scope/contract issues; workers receive bounded fixes against the
 current integration revision. Never blindly retry an unchanged failure or
 reapply an integrated result. Resume by reconciling Git and durable state first.
 Reconstruct lost worker context from its remaining brief rather than restarting
 the parent feature. Repairs to integrated work are new tasks at the current tip.
-
-Activate a native Goal only when explicitly requested. Do not create a Goal
-merely to persist or continue this workflow.
 
 ## 5. Review And Explain In The PR
 
@@ -196,9 +249,10 @@ changes include where a maintainer would change the feature next. Publish only
 when authorized; otherwise return the draft body in chat. Explanation gaps do
 not undo verified implementation completion.
 
-Mark completed only when approved behavior, integrated checks, and verified
-review findings are satisfied or explicitly dispositioned. Return the PR link,
-meaningful validation, actual execution/model routing, and material limitations.
+Mark the work item and its active Goal completed only when approved behavior,
+integrated checks, verified review findings, and the authorized handoff are
+satisfied or explicitly dispositioned. Return the PR link, meaningful validation,
+actual execution/model routing, Goal outcome, and material limitations.
 Keep `$retro` user-invoked; do not automatically mutate steering files after
 finishing the feature. Preserve worker evidence until transfer is verified.
 

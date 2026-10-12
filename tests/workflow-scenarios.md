@@ -83,6 +83,41 @@ not started. Diagnose the failure, preserve all work, and resume using the
 recorded graph. The failure was an environment prerequisite, now restored;
 no code or approved scope changed. Do not implement or merge A again.
 
+### ExecPlan, graph, and Goal together
+
+Use the full grill-plan-build workflow to implement an agreed feature and
+create a Goal for execution after I approve the plan. The decision ledger is
+complete, but no ExecPlan exists. Both planning skills, Goalcraft, and native
+Goals are available. The repository has no PLANS.md. Two independent slices
+and a dependent integration slice are expected. Describe actions before and
+after approval, including when implementation is complete.
+
+### Approved design without Goal authorization
+
+Use grill-plan-build to execute this existing approved ExecPlan and task graph.
+My earlier approval covered the design only. No Goal request or activation
+approval has been given. Describe the next step and which planning work is reused.
+
+### Planning-only handoff
+
+Create and improve the ExecPlan and task graph for this resolved design.
+Planning only: do not implement or activate a Goal. Native Goals are available.
+Explain what you produce and where you stop.
+
+### Resume with an unfinished Goal
+
+Resume this approved work item with an unfinished Goal already pointing at its
+ExecPlan and graph. One task is integrated and verified; another is ready.
+Describe how you resume. Also describe what changes if the active Goal instead
+belongs to an unrelated work item and replacement has not been authorized.
+
+### Goal activation unavailable
+
+The plan, graph, implementation, and Goal activation are approved. Goalcraft is
+available, but this runtime has no native Goal tool. Implementation is authorized
+even if persistent Goal execution is unavailable. Describe your fallback and
+the evidence required before reporting completion.
+
 ## Assessment notes — evaluator only
 
 - Independent work: main retains design/integration; explicitly selected smaller
@@ -106,9 +141,26 @@ no code or approved scope changed. Do not implement or merge A again.
 - Repair: fresh worker branch/worktree starts at I3 containing the integrated
   result; return and apply only new commits after that exact starting commit.
   Prior worker state is preserved, and A1 is not transferred a second time.
-- Across cases: no implicit Goal, no extra ordinary closeout before the combined
-  independent review, no interactive session unless requested, no worker writes
-  to canonical parent artifacts, and no phase-driven approval repetitions.
+- ExecPlan lifecycle: invoke execplan-create for a new plan and execplan-improve
+  once before deriving/finalizing its graph. Follow the PLANS.md contract; do not
+  replace either skill with an informal plan. No repeated passes for reassurance.
+- Goal lifecycle: after plan approval and explicit activation authorization,
+  invoke Goalcraft to validate and activate a compact objective referencing the
+  work item. Main remains orchestrator; dispatcher remains the sole scheduler.
+  A finished graph does not complete the Goal before validation/review/handoff.
+- Approval boundary: reuse approved designs and plans. If only Goal permission
+  is missing, request it without restarting planning. Do not infer authorization
+  from a skill being selected implicitly, silence, or unrelated approval.
+- Planning-only: create/improve plan and graph, without implementation or Goal
+  activation. An explicit no-Goal request also permits authorized implementation
+  to proceed without repeatedly asking for activation.
+- Goal resume: reuse the matching unfinished Goal and verified task state;
+  do not rerun completed planning or replace an unrelated Goal without consent.
+- Missing Goal runtime: retain the validated objective, disclose non-activation,
+  and continue authorized implementation without claiming a native Goal exists.
+- Across cases: no extra ordinary closeout before the combined independent
+  review, no interactive session unless requested, no worker writes to canonical
+  parent artifacts, and no phase-driven approval repetitions.
 
 - Portable loop: select dispatch-tickets, preview the approved immutable graph,
   use explicit provider commands per ticket, and let the script own scheduling,

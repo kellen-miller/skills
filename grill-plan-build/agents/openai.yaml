@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill Plan Build"
-  short_description: "Decompose plans, dispatch workers, explain in PRs"
-  default_prompt: "Use $grill-plan-build to resolve intent, investigate in parallel, decompose an executable task graph, dispatch isolated workers, validate and independently review integration, then explain the result visually in its PR."
+  short_description: "Create ExecPlans and Goals, dispatch parallel workers"
+  default_prompt: "Use $grill-plan-build to resolve intent, create and improve an ExecPlan, derive its task graph, then create a Goal after plan approval to drive isolated workers, integration, validation, independent review, and the authorized PR handoff."
