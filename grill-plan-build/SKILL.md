@@ -273,8 +273,7 @@ Mark the work item and its active Goal completed only when approved behavior,
 integrated checks, verified review findings, and the authorized handoff are
 satisfied or explicitly dispositioned. Return the PR link, meaningful validation,
 actual execution/model routing, Goal outcome, and material limitations.
-Keep `$retro` user-invoked; do not automatically mutate steering files after
-finishing the feature. Preserve worker evidence until transfer is verified.
+Preserve worker evidence until transfer is verified.
 
 ## Supporting Skill Resolution
 
