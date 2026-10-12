@@ -22,6 +22,22 @@ The main model is Astra; Luna and three worker slots are available. The Git
 checkout is clean. I prefer small implementation workers running in parallel
 in separate worktrees. The existing approval covers this design and scope.
 
+### Automatic implementation model selection
+
+Execute an approved two-task graph with settled interfaces and disjoint paths.
+Implementation and Goal activation are authorized. The main agent uses a large
+reasoning model; the runtime exposes smaller coding models and supports explicit
+selection. CLI defaults point to the main model. One ticket overrides the worker
+command to use another configured provider. I have no model preference. Describe
+the launch settings and whether you need any further user choice.
+
+### Bounded model escalation
+
+A smaller worker's check fails because a required local dependency is missing.
+A separate task exposes an unresolved concurrency invariant. Describe diagnosis,
+model selection, and delegation for each task. Routine independent tickets remain
+ready. Do not execute workers in this dry run.
+
 ### Consequential planning
 
 Use grill-plan-build to design and implement production tenant-data deletion.
@@ -126,6 +142,15 @@ the evidence required before reporting completion.
   concurrently; dependent tasks wait for integrated prerequisites.
 - Consequential planning: inspect facts, ask unresolved material questions,
   critique before final approval, and retain production action boundaries.
+- Automatic routing: main selects available smaller coding models without a
+  user reminder or model-selection question. Both the default command and the
+  provider override explicitly select the intended model or verified profile;
+  neither inherits the large CLI default. Report selection separately from
+  confirmed execution evidence.
+- Escalation: repair the missing environment prerequisite without upgrading the
+  worker. Main resolves the concurrency decision or delegates that reasoning
+  with a documented stronger-model need, then returns settled implementation
+  to smaller workers. Independent routine tasks keep their smaller models.
 - Changed evidence: focused review of the new authorization/cache risk, not
   blind reliance on an earlier verdict or an unconditional full-review loop.
 - Resume: inspect live state against artifacts, integrate A exactly once,

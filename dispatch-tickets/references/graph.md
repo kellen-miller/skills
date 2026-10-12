@@ -15,7 +15,7 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
   "approved": true,
   "base_ref": "refs/remotes/origin/main",
   "integration_branch": "refs/heads/feat/example",
-  "worker_command": ["codex", "exec", "--sandbox", "workspace-write", "-"],
+  "worker_command": ["codex", "exec", "--model", "<selected-implementation-model>", "--sandbox", "workspace-write", "-"],
   "integration_checks": [["uv", "run", "--locked", "python", "-m", "unittest", "discover", "-s", "tests"]],
   "tickets": [
     {
@@ -34,15 +34,17 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
       "brief": "tasks/cli.md",
       "depends_on": ["export"],
       "owned_paths": ["src/cli.py", "tests/test_cli.py"],
-      "worker_command": ["claude", "-p", "--permission-mode", "acceptEdits"],
+      "worker_command": ["claude", "-p", "--model", "<selected-provider-implementation-model>", "--permission-mode", "acceptEdits"],
       "checks": [["uv", "run", "--locked", "python", "-m", "unittest", "tests.test_cli"]]
     }
   ]
 }
 ```
 
-Adapt commands to the target project. Both CLI examples use configured auth and
-model defaults; set explicit model/profile options when desired. Configure
+Adapt commands to the target project. Replace the model placeholders with
+current supported smaller coding models selected by main, using each CLI's
+supported model option or a verified profile. These are not literal model IDs.
+Both examples use configured authentication. Configure
 noninteractive command permissions using the selected CLI's supported settings.
 Per-ticket `worker_command` replaces the default array entirely, allowing a
 provider or model appropriate to each task. A wrapper can adapt any CLI that

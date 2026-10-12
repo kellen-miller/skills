@@ -36,6 +36,14 @@ this protocol. Resolve the executable, model, permissions, and authentication
 before running; inherit the user's configured access, and never silently switch
 providers or relax sandboxing. Do not put credentials in command arguments.
 
+Main automatically selects a smaller, lower-cost coding model for implementation
+unless the user specifies otherwise or a task has a documented reasoning need
+for a larger model. Resolve current supported models; do not inherit the main
+agent's model or an unchecked CLI default. Encode the selection in the command
+or a verified profile, including every per-ticket override. If unavailable,
+disclose actual fallback and honor user cost/model constraints. The runner
+executes these commands; it does not choose or verify model capability.
+
 ## Preview And Execute
 
 Resolve the script relative to this skill:

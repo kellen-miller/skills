@@ -190,12 +190,32 @@ scripted scheduling, model overrides, or parallelism that did not occur.
 
 ### Model And Workspace Ownership
 
-Keep the user-selected main model for design and acceptance. Honor explicit
-worker choices; otherwise use a runtime-supported smaller coding model for
-bounded tasks and disclose the selection. Research or difficult slices may
-need a stronger model. Do not hardcode stale model IDs. With native model
-overrides, use a fresh context (`fork_turns: "none"` when required). Record
-requested model/effort separately from runtime-confirmed evidence.
+Keep the user-selected main model for grilling, planning, orchestration, and
+acceptance. Implementation defaults to smaller, lower-cost coding models,
+including routine fixes and tests. Main selects these automatically from the
+runtime's current supported models and configured providers; the user need not
+request cheaper workers or choose a model for each task. Honor explicit user
+choices, but never inherit the main model merely because it is the default.
+Keep model names and versions out of this policy.
+
+Select the least costly available model capable of the bounded assignment,
+with suitable reasoning effort. Set that selection explicitly in each CLI
+worker command/profile or native spawn request, including per-task overrides.
+Verify profiles resolve to the intended model; a prompt asking a large model
+to act like a smaller one does not change routing. With native model overrides,
+use a fresh context (`fork_turns: "none"` when required).
+
+Reserve larger models for work with a concrete reasoning need: unresolved
+architecture, difficult diagnosis, or a task a smaller worker demonstrably
+cannot solve after main checks its brief and environment. First resolve or
+isolate that uncertainty so routine implementation can stay with smaller
+workers. Escalate only the affected task and record the reason; task volume,
+parallelism, or one failing check alone does not justify larger workers.
+
+Record selected model/effort separately from runtime-confirmed evidence.
+If smaller-model routing is unavailable, disclose the limitation and actual
+fallback rather than silently launching large workers or claiming savings.
+Continue authorized work within explicit user cost/model constraints.
 
 Each concurrent implementation worker gets its own worktree and branch from
 an exact integration commit containing its completed prerequisites. Never
