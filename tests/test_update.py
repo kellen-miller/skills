@@ -353,6 +353,23 @@ class ManifestTest(unittest.TestCase):
                 with self.assertRaises(self.module.ManifestError):
                     self.module.load_manifest(self.load(overlay=overlay))
 
+    def test_claude_flag_is_boolean_and_requires_explicit_selection(self):
+        dependencies, _ = self.module.load_manifest(self.load())
+        self.assertTrue(dependencies[0]["claude"])
+
+        discovery = explicit_dependency(claude=False)
+        discovery["selection"] = {"mode": "discovery", "root": "skills"}
+        cases = {
+            "must be a boolean": explicit_dependency(claude="no"),
+            "requires explicit selection": discovery,
+        }
+        for message, dependency in cases.items():
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(self.module.ManifestError, message):
+                    self.module.load_manifest(
+                        self.load({"version": 1, "dependencies": [dependency]})
+                    )
+
     def test_detects_authored_roots_without_hardcoded_names(self):
         root = self.load(authored=("custom-authored",))
         for name in ("_managed", ".github", "tests", "ordinary"):
@@ -527,13 +544,25 @@ class ClaudeInstallTest(unittest.TestCase):
             path.mkdir(parents=True)
             (path / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
 
-    def install(self, *, dry_run=False):
+    def install(self, dependencies=(), *, dry_run=False):
         output = io.StringIO()
         with redirect_stdout(output):
             self.module.install_claude(
-                self.root, {"authored"}, self.target, dry_run=dry_run
+                self.root, dependencies, {"authored"}, self.target, dry_run=dry_run
             )
         return output.getvalue()
+
+    def test_skips_dependencies_hidden_from_claude(self):
+        dependency = explicit_dependency(claude=False)
+        dependency["selection"]["include"][0]["destination"] = "vendor-review"
+        hidden = self.module.normalize_dependency(dependency, "dep", base=True)
+        self.install()
+
+        output = self.install([hidden])
+
+        self.assertIn("REMOVE vendor-review", output)
+        self.assertFalse((self.target / "vendor-review").exists())
+        self.assertTrue((self.target / "authored").is_dir())
 
     def test_installs_flat_unique_skills_and_is_idempotent(self):
         output = self.install()

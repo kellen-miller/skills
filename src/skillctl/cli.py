@@ -119,7 +119,7 @@ def normalize_dependency(raw, context, *, base):
     item = require_mapping(raw, context)
     require_keys(
         item,
-        {"id", "url", "ref", "sparse", "selection"},
+        {"id", "url", "ref", "sparse", "selection", "claude"},
         {"id", "url", "selection"},
         context,
     )
@@ -144,6 +144,10 @@ def normalize_dependency(raw, context, *, base):
         sparse = unique_strings(sparse, f"{context}.sparse", paths=True)
         if not sparse:
             raise ManifestError(f"{context}.sparse must not be empty")
+
+    claude = item.get("claude", True)
+    if not isinstance(claude, bool):
+        raise ManifestError(f"{context}.claude must be a boolean")
 
     selection = require_mapping(item["selection"], f"{context}.selection")
     mode = selection.get("mode")
@@ -184,6 +188,8 @@ def normalize_dependency(raw, context, *, base):
         normalized_selection = {"mode": mode, "root": root, "exclude": exclude}
     else:
         raise ManifestError(f"{context}.selection.mode must be explicit or discovery")
+    if not claude and mode != "explicit":
+        raise ManifestError(f"{context}.claude: false requires explicit selection")
 
     return {
         "id": dependency_id,
@@ -191,6 +197,7 @@ def normalize_dependency(raw, context, *, base):
         "ref": ref,
         "sparse": sparse,
         "selection": normalized_selection,
+        "claude": claude,
     }
 
 
@@ -531,18 +538,29 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
 CLAUDE_OWNED = ".skillctl-owned"
 
 
-def install_claude(repo_root, durable_roots, target, *, dry_run):
+def install_claude(repo_root, dependencies, durable_roots, target, *, dry_run):
     """Copy authored and managed skills flat into a Claude Code skills directory.
 
-    Only entries recorded in the ownership file are replaced or removed, so
-    skills that other tools put in the target are never touched.
+    Skills from dependencies marked `claude: false` are left out. Only entries
+    recorded in the ownership file are replaced or removed, so skills that
+    other tools put in the target are never touched.
     """
+    hidden = {
+        mapping["destination"]
+        for dependency in dependencies
+        if not dependency["claude"]
+        for mapping in dependency["selection"]["include"]
+    }
     with sync_lock(repo_root):
         managed = repo_root / "_managed"
         sources = {name: repo_root / name for name in durable_roots}
         if managed.is_dir():
             for path in managed.iterdir():
-                if path.is_dir() and (path / "SKILL.md").is_file():
+                if (
+                    path.name not in hidden
+                    and path.is_dir()
+                    and (path / "SKILL.md").is_file()
+                ):
                     sources[path.name] = path
 
         target.mkdir(parents=True, exist_ok=True)
@@ -606,21 +624,31 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     sync_parser = subparsers.add_parser("sync")
     sync_parser.add_argument("--dry-run", action="store_true")
+    sync_parser.add_argument(
+        "--no-claude", action="store_true", help="skip the Claude Code install"
+    )
     claude_parser = subparsers.add_parser(
         "install-claude", help="copy skills flat into a Claude Code skills directory"
     )
     claude_parser.add_argument("--dry-run", action="store_true")
-    claude_parser.add_argument(
-        "--target", type=Path, default=Path.home() / ".claude" / "skills"
-    )
+    for subparser in (sync_parser, claude_parser):
+        subparser.add_argument(
+            "--claude-target", type=Path, default=Path.home() / ".claude" / "skills"
+        )
     args = parser.parse_args(argv)
     repo_root = Path(__file__).resolve().parents[2]
     try:
         dependencies, durable_roots = load_manifest(repo_root)
         if args.command == "sync":
             materialize(repo_root, dependencies, durable_roots, dry_run=args.dry_run)
-        else:
-            install_claude(repo_root, durable_roots, args.target, dry_run=args.dry_run)
+        if args.command == "install-claude" or not args.no_claude:
+            install_claude(
+                repo_root,
+                dependencies,
+                durable_roots,
+                args.claude_target,
+                dry_run=args.dry_run,
+            )
     except (
         ManifestError,
         RuntimeError,
