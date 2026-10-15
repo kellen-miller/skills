@@ -2,6 +2,7 @@ import fcntl
 import importlib.util
 import io
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -417,6 +418,16 @@ class MaterializationTest(unittest.TestCase):
         self.assertNotIn("REMOVE ", second)
         self.assertNotIn("UPDATE ", second)
 
+    def test_rewrites_frontmatter_name_to_destination(self):
+        dependency = explicit_dependency()
+        dependency["selection"]["include"][0]["destination"] = "example-alpha"
+        write_manifest(self.root, [dependency])
+
+        self.materialize()
+
+        content = (self.root / "_managed" / "example-alpha" / "SKILL.md").read_text()
+        self.assertEqual(content, "---\nname: example-alpha\n---\n")
+
     def test_dry_run_stages_without_mutating_live_tree(self):
         old = self.root / "_managed"
         old.mkdir()
@@ -474,6 +485,111 @@ class MaterializationTest(unittest.TestCase):
         )
 
 
+class SkillNameTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.skill = Path(temporary.name)
+
+    def rewrite(self, content):
+        (self.skill / "SKILL.md").write_text(content, encoding="utf-8")
+        self.module.set_skill_name(self.skill, "unique")
+        return (self.skill / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_replaces_inserts_or_adds_frontmatter_name(self):
+        cases = {
+            "---\nname: review\ndescription: d\n---\nbody\nname: keep\n": (
+                "---\nname: unique\ndescription: d\n---\nbody\nname: keep\n"
+            ),
+            "---\ndescription: d\n---\nbody\n": (
+                "---\nname: unique\ndescription: d\n---\nbody\n"
+            ),
+            "---\n---\nbody\n": "---\nname: unique\n---\nbody\n",
+            "# body\n": "---\nname: unique\n---\n# body\n",
+        }
+        for original, expected in cases.items():
+            with self.subTest(original=original):
+                self.assertEqual(self.rewrite(original), expected)
+
+
+class ClaudeInstallTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name) / "skills"
+        self.target = Path(temporary.name) / "claude"
+        for path, name in (
+            (self.root / "authored", "authored"),
+            (self.root / "_managed" / "vendor-review", "review"),
+        ):
+            path.mkdir(parents=True)
+            (path / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+    def install(self, *, dry_run=False):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.module.install_claude(
+                self.root, {"authored"}, self.target, dry_run=dry_run
+            )
+        return output.getvalue()
+
+    def test_installs_flat_unique_skills_and_is_idempotent(self):
+        output = self.install()
+
+        self.assertIn("ADD authored", output)
+        self.assertIn("ADD vendor-review", output)
+        self.assertEqual(
+            (self.target / "vendor-review" / "SKILL.md").read_text(),
+            "---\nname: vendor-review\n---\n",
+        )
+        self.assertEqual(
+            (self.target / ".skillctl-owned").read_text(), "authored\nvendor-review\n"
+        )
+        self.assertEqual(
+            (self.root / "_managed" / "vendor-review" / "SKILL.md").read_text(),
+            "---\nname: review\n---\n",
+        )
+        self.assertEqual(list(self.target.glob(".skillctl-stage-*")), [])
+
+        second = self.install()
+        self.assertNotIn("ADD ", second)
+        self.assertNotIn("UPDATE ", second)
+        self.assertNotIn("REMOVE ", second)
+
+    def test_updates_and_removes_only_owned_entries(self):
+        self.install()
+        (self.target / "synced").mkdir()
+        (self.root / "authored" / "extra.md").write_text("new")
+        shutil.rmtree(self.root / "_managed" / "vendor-review")
+
+        output = self.install()
+
+        self.assertIn("UPDATE authored", output)
+        self.assertIn("REMOVE vendor-review", output)
+        self.assertTrue((self.target / "authored" / "extra.md").is_file())
+        self.assertFalse((self.target / "vendor-review").exists())
+        self.assertTrue((self.target / "synced").is_dir())
+
+    def test_refuses_to_replace_unowned_entry(self):
+        (self.target / "authored").mkdir(parents=True)
+        (self.target / "authored" / "SKILL.md").write_text("mine")
+
+        with self.assertRaisesRegex(RuntimeError, "not managed by skillctl"):
+            self.install()
+
+        self.assertEqual((self.target / "authored" / "SKILL.md").read_text(), "mine")
+        self.assertFalse((self.target / "vendor-review").exists())
+
+    def test_dry_run_reports_without_mutating_target(self):
+        output = self.install(dry_run=True)
+
+        self.assertIn("ADD vendor-review", output)
+        self.assertIn("Would install 2 skills", output)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+
 class ConsoleEntryPointTest(unittest.TestCase):
     def test_packaged_skillctl_help_is_invokable(self):
         result = subprocess.run(
@@ -487,6 +603,7 @@ class ConsoleEntryPointTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("usage: skillctl", result.stdout)
         self.assertIn("sync", result.stdout)
+        self.assertIn("install-claude", result.stdout)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fcntl
+import re
 import shutil
 import subprocess
 import sys
@@ -377,7 +379,8 @@ def trees_equal(left, right):
     return True
 
 
-def materialize(repo_root, dependencies, durable_roots, *, dry_run):
+@contextlib.contextmanager
+def sync_lock(repo_root):
     lock_path = repo_root / ".skillctl.lock"
     with lock_path.open("a+") as lock_file:
         try:
@@ -386,123 +389,216 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
             raise RuntimeError("another sync is in progress") from error
 
         try:
-            with tempfile.TemporaryDirectory(
-                prefix=".skills-sync-", dir=repo_root.parent
-            ) as temporary:
-                temporary_root = Path(temporary)
-                clones_root = temporary_root / "clones"
-                stage = temporary_root / "_managed"
-                clones_root.mkdir()
-                stage.mkdir()
-                selected = []
-                destinations = set()
-
-                for dependency in dependencies:
-                    clone = clones_root / dependency["id"]
-                    args = ["clone", "--filter=blob:none", "--depth", "1"]
-                    if dependency["sparse"]:
-                        args.append("--sparse")
-                    if dependency["ref"]:
-                        args.extend(["--branch", dependency["ref"]])
-                    args.extend([dependency["url"], str(clone)])
-                    run_git(args)
-                    if dependency["sparse"]:
-                        run_git(
-                            ["sparse-checkout", "set", *dependency["sparse"]],
-                            cwd=clone,
-                        )
-
-                    selection = dependency["selection"]
-                    if selection["mode"] == "explicit":
-                        mappings = selection["include"]
-                    else:
-                        root = (
-                            clone
-                            if selection["root"] == "."
-                            else clone / selection["root"]
-                        )
-                        if not root.is_dir():
-                            raise RuntimeError(
-                                f"{dependency['id']} discovery root does not exist: "
-                                f"{selection['root']}"
-                            )
-                        mappings = [
-                            {
-                                "source": child.relative_to(clone).as_posix(),
-                                "destination": child.name,
-                            }
-                            for child in sorted(
-                                root.iterdir(), key=lambda path: path.name
-                            )
-                            if child.is_dir()
-                            and child.name not in selection["exclude"]
-                            and (child / "SKILL.md").is_file()
-                        ]
-
-                    for mapping in mappings:
-                        destination = mapping["destination"]
-                        if destination in durable_roots:
-                            raise RuntimeError(
-                                f"managed destination {destination} collides with "
-                                "an authored skill"
-                            )
-                        if destination in destinations:
-                            raise RuntimeError(f"duplicate destination {destination}")
-                        source = (
-                            clone
-                            if mapping["source"] == "."
-                            else clone / mapping["source"]
-                        )
-                        if not source.is_dir() or not (source / "SKILL.md").is_file():
-                            raise RuntimeError(
-                                f"{dependency['id']} source is not a skill: "
-                                f"{mapping['source']}"
-                            )
-                        ensure_safe_tree(source, clone)
-                        destinations.add(destination)
-                        selected.append((source, destination))
-
-                for source, destination in selected:
-                    shutil.copytree(
-                        source,
-                        stage / destination,
-                        ignore=shutil.ignore_patterns(".git"),
-                    )
-
-                current = repo_root / "_managed"
-                old_names = (
-                    {path.name for path in current.iterdir()}
-                    if current.is_dir()
-                    else set()
-                )
-                new_names = {path.name for path in stage.iterdir()}
-                for name in sorted(new_names - old_names):
-                    print(f"ADD {name}")
-                for name in sorted(old_names - new_names):
-                    print(f"REMOVE {name}")
-                for name in sorted(old_names & new_names):
-                    if not trees_equal(current / name, stage / name):
-                        print(f"UPDATE {name}")
-
-                if not dry_run:
-                    backup = repo_root / f"._managed.backup.{uuid.uuid4().hex}"
-                    moved_old = False
-                    try:
-                        if current.exists():
-                            current.rename(backup)
-                            moved_old = True
-                        stage.rename(current)
-                    except Exception:
-                        if moved_old and backup.exists() and not current.exists():
-                            backup.rename(current)
-                        raise
-                    if backup.exists():
-                        shutil.rmtree(backup)
-                    print(f"Installed {len(new_names)} managed skills")
-                else:
-                    print(f"Would install {len(new_names)} managed skills")
+            yield
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+FRONTMATTER = re.compile(r"\A---\n(.*?)^---[ \t]*$", re.S | re.M)
+NAME_LINE = re.compile(r"^name:.*$", re.M)
+
+
+def set_skill_name(skill_dir, name):
+    """Make the frontmatter name match the directory so flattened skills stay unique."""
+    skill_file = skill_dir / "SKILL.md"
+    content = skill_file.read_text(encoding="utf-8")
+    name_line = f"name: {name}"
+    match = FRONTMATTER.match(content)
+    if match is None:
+        content = f"---\n{name_line}\n---\n{content}"
+    else:
+        header = match.group(1)
+        if NAME_LINE.search(header):
+            header = NAME_LINE.sub(lambda _: name_line, header, count=1)
+        else:
+            header = f"{name_line}\n{header}"
+        content = f"---\n{header}{content[match.end(1) :]}"
+    skill_file.write_text(content, encoding="utf-8")
+
+
+def materialize(repo_root, dependencies, durable_roots, *, dry_run):
+    with sync_lock(repo_root):
+        with tempfile.TemporaryDirectory(
+            prefix=".skills-sync-", dir=repo_root.parent
+        ) as temporary:
+            temporary_root = Path(temporary)
+            clones_root = temporary_root / "clones"
+            stage = temporary_root / "_managed"
+            clones_root.mkdir()
+            stage.mkdir()
+            selected = []
+            destinations = set()
+
+            for dependency in dependencies:
+                clone = clones_root / dependency["id"]
+                args = ["clone", "--filter=blob:none", "--depth", "1"]
+                if dependency["sparse"]:
+                    args.append("--sparse")
+                if dependency["ref"]:
+                    args.extend(["--branch", dependency["ref"]])
+                args.extend([dependency["url"], str(clone)])
+                run_git(args)
+                if dependency["sparse"]:
+                    run_git(
+                        ["sparse-checkout", "set", *dependency["sparse"]],
+                        cwd=clone,
+                    )
+
+                selection = dependency["selection"]
+                if selection["mode"] == "explicit":
+                    mappings = selection["include"]
+                else:
+                    root = (
+                        clone if selection["root"] == "." else clone / selection["root"]
+                    )
+                    if not root.is_dir():
+                        raise RuntimeError(
+                            f"{dependency['id']} discovery root does not exist: "
+                            f"{selection['root']}"
+                        )
+                    mappings = [
+                        {
+                            "source": child.relative_to(clone).as_posix(),
+                            "destination": child.name,
+                        }
+                        for child in sorted(root.iterdir(), key=lambda path: path.name)
+                        if child.is_dir()
+                        and child.name not in selection["exclude"]
+                        and (child / "SKILL.md").is_file()
+                    ]
+
+                for mapping in mappings:
+                    destination = mapping["destination"]
+                    if destination in durable_roots:
+                        raise RuntimeError(
+                            f"managed destination {destination} collides with "
+                            "an authored skill"
+                        )
+                    if destination in destinations:
+                        raise RuntimeError(f"duplicate destination {destination}")
+                    source = (
+                        clone if mapping["source"] == "." else clone / mapping["source"]
+                    )
+                    if not source.is_dir() or not (source / "SKILL.md").is_file():
+                        raise RuntimeError(
+                            f"{dependency['id']} source is not a skill: "
+                            f"{mapping['source']}"
+                        )
+                    ensure_safe_tree(source, clone)
+                    destinations.add(destination)
+                    selected.append((source, destination))
+
+            for source, destination in selected:
+                shutil.copytree(
+                    source,
+                    stage / destination,
+                    ignore=shutil.ignore_patterns(".git"),
+                )
+                set_skill_name(stage / destination, destination)
+
+            current = repo_root / "_managed"
+            old_names = (
+                {path.name for path in current.iterdir()} if current.is_dir() else set()
+            )
+            new_names = {path.name for path in stage.iterdir()}
+            for name in sorted(new_names - old_names):
+                print(f"ADD {name}")
+            for name in sorted(old_names - new_names):
+                print(f"REMOVE {name}")
+            for name in sorted(old_names & new_names):
+                if not trees_equal(current / name, stage / name):
+                    print(f"UPDATE {name}")
+
+            if not dry_run:
+                backup = repo_root / f"._managed.backup.{uuid.uuid4().hex}"
+                moved_old = False
+                try:
+                    if current.exists():
+                        current.rename(backup)
+                        moved_old = True
+                    stage.rename(current)
+                except Exception:
+                    if moved_old and backup.exists() and not current.exists():
+                        backup.rename(current)
+                    raise
+                if backup.exists():
+                    shutil.rmtree(backup)
+                print(f"Installed {len(new_names)} managed skills")
+            else:
+                print(f"Would install {len(new_names)} managed skills")
+
+
+CLAUDE_OWNED = ".skillctl-owned"
+
+
+def install_claude(repo_root, durable_roots, target, *, dry_run):
+    """Copy authored and managed skills flat into a Claude Code skills directory.
+
+    Only entries recorded in the ownership file are replaced or removed, so
+    skills that other tools put in the target are never touched.
+    """
+    with sync_lock(repo_root):
+        managed = repo_root / "_managed"
+        sources = {name: repo_root / name for name in durable_roots}
+        if managed.is_dir():
+            for path in managed.iterdir():
+                if path.is_dir() and (path / "SKILL.md").is_file():
+                    sources[path.name] = path
+
+        target.mkdir(parents=True, exist_ok=True)
+        owned_path = target / CLAUDE_OWNED
+        owned = (
+            set(owned_path.read_text(encoding="utf-8").split())
+            if owned_path.is_file()
+            else set()
+        )
+        for name in sorted(sources):
+            if (target / name).exists() and name not in owned:
+                raise RuntimeError(
+                    f"{target / name} exists and is not managed by skillctl"
+                )
+
+        with tempfile.TemporaryDirectory(
+            prefix=".skillctl-stage-", dir=target
+        ) as temporary:
+            stage = Path(temporary)
+            for name, source in sources.items():
+                shutil.copytree(
+                    source, stage / name, ignore=shutil.ignore_patterns(".git")
+                )
+                set_skill_name(stage / name, name)
+
+            for name in sorted(set(sources) - owned):
+                print(f"ADD {name}")
+            for name in sorted(owned - set(sources)):
+                print(f"REMOVE {name}")
+            for name in sorted(owned & set(sources)):
+                if not (target / name).is_dir() or not trees_equal(
+                    target / name, stage / name
+                ):
+                    print(f"UPDATE {name}")
+
+            if dry_run:
+                print(f"Would install {len(sources)} skills into {target}")
+                return
+
+            # Record new names before moving them in so an interrupted run can
+            # still replace them next time.
+            owned_path.write_text(
+                "\n".join(sorted(owned | set(sources))) + "\n", encoding="utf-8"
+            )
+            for name in sorted(owned - set(sources)):
+                shutil.rmtree(target / name, ignore_errors=True)
+            for name in sorted(sources):
+                destination = target / name
+                if destination.is_symlink() or destination.is_file():
+                    destination.unlink()
+                elif destination.exists():
+                    shutil.rmtree(destination)
+                (stage / name).rename(destination)
+
+            owned_path.write_text("\n".join(sorted(sources)) + "\n", encoding="utf-8")
+            print(f"Installed {len(sources)} skills into {target}")
 
 
 def main(argv=None):
@@ -510,11 +606,21 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     sync_parser = subparsers.add_parser("sync")
     sync_parser.add_argument("--dry-run", action="store_true")
+    claude_parser = subparsers.add_parser(
+        "install-claude", help="copy skills flat into a Claude Code skills directory"
+    )
+    claude_parser.add_argument("--dry-run", action="store_true")
+    claude_parser.add_argument(
+        "--target", type=Path, default=Path.home() / ".claude" / "skills"
+    )
     args = parser.parse_args(argv)
     repo_root = Path(__file__).resolve().parents[2]
     try:
         dependencies, durable_roots = load_manifest(repo_root)
-        materialize(repo_root, dependencies, durable_roots, dry_run=args.dry_run)
+        if args.command == "sync":
+            materialize(repo_root, dependencies, durable_roots, dry_run=args.dry_run)
+        else:
+            install_claude(repo_root, durable_roots, args.target, dry_run=args.dry_run)
     except (
         ManifestError,
         RuntimeError,

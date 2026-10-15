@@ -84,10 +84,33 @@ unsafe paths, duplicate dependency IDs, duplicate destinations, collisions
 with authored skills, illegal selection options, and sparse-checkout mappings
 that cannot contain their selected sources.
 
+Each managed skill's `SKILL.md` frontmatter `name` is rewritten to its
+destination directory name. Upstream collections often reuse generic names
+such as `testing` or `review`; destinations are unique, so the rewritten names
+are too, and runtimes that index by `name` see no collisions.
+
 Acquisition and validation happen in a staging directory. A successful run
 atomically replaces `_managed/`; a failed run leaves the previous live tree in
 place. The ignored `.skillctl.lock` serializes runs, and a concurrent run fails
 immediately rather than interleaving changes.
+
+## Install for Claude Code
+
+Claude Code does not read `~/.agents/skills`, and it only discovers skills one
+level deep, so the nested `_managed/` tree is invisible to it. After a sync,
+copy every authored and managed skill flat into `~/.claude/skills`:
+
+```sh
+uv run --locked skillctl install-claude --dry-run
+uv run --locked skillctl install-claude
+```
+
+Pass `--target` to install somewhere else. The command records what it
+installed in `<target>/.skillctl-owned` and only replaces or removes those
+entries; other content, such as Claude's own `synced/` directory, is left
+alone. It fails without changing anything if a skill name already exists in
+the target but is not recorded as owned. Copies are snapshots, so rerun the
+command after editing an authored skill or synchronizing.
 
 ## Add or Edit an Authored Skill
 
