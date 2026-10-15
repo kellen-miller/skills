@@ -506,6 +506,97 @@ class MaterializationTest(unittest.TestCase):
         )
         self.assertIn("- `alpha` (`skills/alpha/GUIDE.md`)\n", index)
 
+    def test_router_renames_nested_skills_and_local_links(self):
+        skill = self.source / "skills" / "alpha"
+        nested = skill / "nested"
+        nested.mkdir()
+        (nested / "SKILL.md").write_text("See [parent](../SKILL.md).\n")
+        (skill / "SKILL.md").write_text(
+            "---\nname: alpha\n---\n"
+            "Read [nested](nested/SKILL.md) and `nested/SKILL.md`.\n"
+            "Keep https://example.com/SKILL.md.\n"
+        )
+        subprocess.run(["git", "-C", str(self.source), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.source), "commit", "-m", "Add nested skill"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        write_manifest(
+            self.root,
+            [
+                explicit_dependency(
+                    router={"name": "vendor", "description": "Use for vendor work."}
+                )
+            ],
+        )
+
+        self.materialize()
+
+        router = self.root / "_managed" / "vendor"
+        self.assertEqual(list(router.rglob("SKILL.md")), [router / "SKILL.md"])
+        guide = router / "skills" / "alpha"
+        self.assertIn("nested/GUIDE.md", (guide / "GUIDE.md").read_text())
+        self.assertIn("https://example.com/SKILL.md", (guide / "GUIDE.md").read_text())
+        self.assertIn("../GUIDE.md", (guide / "nested" / "GUIDE.md").read_text())
+
+    def test_router_rejects_existing_guide_without_replacing_live_tree(self):
+        skill = self.source / "skills" / "alpha"
+        (skill / "GUIDE.md").write_text("Keep this reference.\n")
+        subprocess.run(["git", "-C", str(self.source), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.source), "commit", "-m", "Add guide collision"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        write_manifest(
+            self.root,
+            [
+                explicit_dependency(
+                    router={"name": "vendor", "description": "Use for vendor work."}
+                )
+            ],
+        )
+        live = self.root / "_managed"
+        live.mkdir()
+        (live / "keep.txt").write_text("Unchanged")
+
+        with self.assertRaisesRegex(self.module.ManifestError, "guide already exists"):
+            self.materialize()
+
+        self.assertEqual((live / "keep.txt").read_text(), "Unchanged")
+
+    def test_large_router_discloses_bounded_description_indexes(self):
+        router = self.root / "vendor"
+        members = [f"task-{i:02}" for i in range(25)]
+        description = "Distinct routing detail " * 100
+        for member in members:
+            guide = router / "skills" / member / "GUIDE.md"
+            guide.parent.mkdir(parents=True)
+            guide.write_text("---\ndescription: " + description + "\n---\n")
+
+        self.module.write_router(
+            router, {"name": "vendor", "description": "Use for vendor work."}, members
+        )
+
+        entry = (router / "SKILL.md").read_text()
+        self.assertLess(len(entry), 2500)
+        self.assertNotIn(description, entry)
+        indexes = sorted((router / "indexes").glob("*.md"))
+        self.assertEqual(len(indexes), 3)
+        for index in indexes:
+            self.assertIn(f"indexes/{index.name}", entry)
+            self.assertLessEqual(index.read_text().count("- `task-"), 12)
+        for member in members:
+            self.assertIn(member, entry)
+            self.assertEqual(
+                sum(
+                    f"../skills/{member}/GUIDE.md" in index.read_text()
+                    for index in indexes
+                ),
+                1,
+            )
+
     def test_dry_run_stages_without_mutating_live_tree(self):
         old = self.root / "_managed"
         old.mkdir()

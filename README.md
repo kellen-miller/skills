@@ -205,13 +205,20 @@ Add a `router` to collapse a dependency into one skill:
         destination: reviewing
 ```
 
-`skillctl sync` installs `_managed/example-skills/SKILL.md`, an index of each
-selected skill with its description, and nests the skills under
-`_managed/example-skills/skills/<destination>/`. Each nested `SKILL.md` is
-renamed `GUIDE.md` so harnesses that search recursively still discover only the
-router. The agent loads the router, picks a guide, and follows it. Write the
-router description to cover every situation its skills handle; it is the only
-text agents see before loading it.
+`skillctl sync` installs `_managed/example-skills/SKILL.md` and nests guides
+under `_managed/example-skills/skills/<destination>/`. It renames every nested
+`SKILL.md` to `GUIDE.md` and updates local Markdown references to renamed files,
+so recursive discovery exposes only the router. A conflicting `GUIDE.md` fails
+synchronization before replacing the live tree.
+
+Small routers include full guide descriptions. Routers with more than 12 guides
+or over 8,000 characters of index entries instead list guide names grouped into
+linked indexes of at most 12 descriptions. Load the relevant index, then the
+selected guide; resolve paths from the file containing them.
+
+Write a concise router description covering its task branches: only that
+frontmatter description is preloaded in the agent's skill catalog. Full guide
+descriptions remain available in the indexes without inflating every turn.
 
 Nested destinations only need to be unique within their router. A nested skill
 cannot be invoked directly by name.

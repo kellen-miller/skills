@@ -468,6 +468,7 @@ def write_router(router_dir, router, members):
         "skill. Resolve relative paths in a guide from that guide's directory.",
         "",
     ]
+    entries = []
     for member in sorted(members):
         guide = router_dir / "skills" / member / ROUTED_GUIDE
         match = FRONTMATTER.match(guide.read_text(encoding="utf-8"))
@@ -480,7 +481,37 @@ def write_router(router_dir, router, members):
         )
         summary = " ".join(str(description or "").split())
         entry = f"- `{member}` (`skills/{member}/{ROUTED_GUIDE}`)"
-        lines.append(f"{entry}: {summary}" if summary else entry)
+        entries.append((member, entry, summary))
+
+    if (
+        len(entries) > 12
+        or sum(len(entry) + len(summary) for _, entry, summary in entries) > 8000
+    ):
+        lines.extend(
+            [
+                "Read the index containing the relevant guide name below, then choose "
+                "using its full descriptions. Read only the indexes needed for the task.",
+                "",
+            ]
+        )
+        (router_dir / "indexes").mkdir(exist_ok=True)
+        for offset in range(0, len(entries), 12):
+            group = entries[offset : offset + 12]
+            filename = f"{group[0][0]}--{group[-1][0]}.md"
+            names = ", ".join(f"`{member}`" for member, _, _ in group)
+            lines.append(f"- [Index](indexes/{filename}): {names}")
+            details = [f"# {router['name']}: {group[0][0]} – {group[-1][0]}", ""]
+            for _, entry, summary in group:
+                entry = entry.replace("(`skills/", "(`../skills/")
+                details.append(f"{entry}: {summary}" if summary else entry)
+            (router_dir / "indexes" / filename).write_text(
+                "\n".join(details) + "\n", encoding="utf-8"
+            )
+    else:
+        lines.extend(
+            f"{entry}: {summary}" if summary else entry for _, entry, summary in entries
+        )
+
     (router_dir / "SKILL.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -581,11 +612,34 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                 )
                 set_skill_name(stage / relative, relative.name)
                 if routed:
-                    # Renamed so harnesses that search recursively for SKILL.md
-                    # only discover the router.
-                    (stage / relative / "SKILL.md").rename(
-                        stage / relative / ROUTED_GUIDE
-                    )
+                    # Rename every nested entry point and repair references to
+                    # those files, so recursive discovery sees only the router.
+                    tree = stage / relative
+                    skill_files = {path.resolve() for path in tree.rglob("SKILL.md")}
+                    for skill_file in skill_files:
+                        if skill_file.with_name(ROUTED_GUIDE).exists():
+                            raise ManifestError(
+                                f"routed guide already exists: {skill_file}"
+                            )
+
+                    for document in tree.rglob("*.md"):
+                        content = document.read_text(encoding="utf-8")
+
+                        def rewrite_guide(match):
+                            target = match.group(0)
+                            if "://" in target or target.startswith("/"):
+                                return target
+                            if (document.parent / target).resolve() in skill_files:
+                                return target.removesuffix("SKILL.md") + ROUTED_GUIDE
+                            return target
+
+                        content = re.sub(
+                            r"[^\s`()<>\"']*SKILL\.md", rewrite_guide, content
+                        )
+                        document.write_text(content, encoding="utf-8")
+
+                    for skill_file in skill_files:
+                        skill_file.rename(skill_file.with_name(ROUTED_GUIDE))
 
             for router, members in routers:
                 write_router(stage / router["name"], router, members)

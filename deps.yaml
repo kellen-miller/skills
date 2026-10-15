@@ -51,9 +51,9 @@ dependencies:
     router:
       name: cloudflare-skills
       description: >-
-        Use for Cloudflare work: Workers, Wrangler, Durable Objects, Agents
-        SDK, Sandbox, Cloudflare One, Email Service, Turnstile, Next.js on
-        Cloudflare, and Workers performance or profiling.
+        Use for Cloudflare: Workers, Wrangler, Durable Objects, Agents SDK,
+        Sandbox, Cloudflare One, email, Turnstile, Next.js, performance and
+        profiling.
     selection:
       mode: explicit
       include:
@@ -100,9 +100,8 @@ dependencies:
     router:
       name: datadog-skills
       description: >-
-        Use for Datadog work through the pup CLI: logs, APM, monitors,
-        debugger, Symbol DB, IDP, docs, flaky-test triage, unblocking PRs,
-        filing issues, or generating Datadog API code.
+        Use for Datadog via pup: logs, APM, monitors, debugger, Symbol DB,
+        IDP, docs, flaky tests, PR triage, issues and API code.
     selection:
       mode: explicit
       include:
@@ -146,10 +145,9 @@ dependencies:
     router:
       name: google-workspace-skills
       description: >-
-        Use when working with Google Workspace through the gws CLI: Gmail,
-        Calendar, Drive, Docs, Sheets, Slides, Chat, Meet, Forms, Tasks, Keep,
-        Classroom, Apps Script, admin reports, or multi-step Workspace
-        workflows.
+        Use for Google Workspace via gws: Gmail, Calendar, Drive, Docs,
+        Sheets, Slides, Chat, Meet, Forms, Tasks, Keep, Classroom, Apps Script
+        and admin reports.
     selection:
       mode: explicit
       include:
@@ -433,11 +431,9 @@ dependencies:
     router:
       name: aws-skills
       description: >-
-        Use for Amazon Web Services work: designing, deploying, operating,
-        securing, debugging, or costing AWS resources, including EC2, Lambda,
-        S3, VPC networking, IAM, RDS, Aurora, DynamoDB, Redshift, MSK,
-        Kinesis, Bedrock, CloudFormation, CDK, CloudWatch, and resilience
-        tooling.
+        Use for AWS design, deployment, operations, security, debugging and
+        costs across compute, storage, networking, databases, streaming, AI,
+        IaC and resilience.
     selection:
       mode: explicit
       include:
@@ -668,10 +664,9 @@ dependencies:
     router:
       name: azure-skills
       description: >-
-        Use for Microsoft Azure work: preparing, deploying, validating,
-        migrating, diagnosing, or reviewing Azure resources, including AKS,
-        App Service, storage, messaging, Kusto, AI Foundry, Entra ID, quotas,
-        compliance, and reliability.
+        Use for Azure deployment, migration, diagnostics, infrastructure, AKS,
+        App Service, storage, messaging, Kusto, Foundry, Entra, quotas,
+        compliance and reliability.
     selection:
       mode: explicit
       include:
@@ -738,11 +733,8 @@ dependencies:
     router:
       name: redpanda-skills
       description: >-
-        Use for working with Redpanda products as a user: rpk CLI commands
-        (cluster, topic, group, registry, security, transform, debug, cloud),
-        Redpanda Streaming and its Admin API, Redpanda Connect pipelines and
-        CDC sources, Redpanda SQL, the Agentic Data Plane, and Redpanda Cloud
-        BYOC, Dedicated, or Serverless clusters.
+        Use for Redpanda: rpk, Streaming and Admin API, Connect pipelines and
+        CDC, SQL, Agentic Data Plane, Cloud BYOC, Dedicated and Serverless.
     selection:
       mode: explicit
       include:
@@ -817,9 +809,8 @@ dependencies:
     router:
       name: grafana-skills
       description: >-
-        Use for Grafana work through gcx: dashboards, alert investigation,
-        SLOs, synthetic checks, on-call triage, entity graphs, agent
-        observability instrumentation, and debugging with Grafana data.
+        Use for Grafana via gcx: dashboards, alerts, SLOs, synthetic checks,
+        on-call triage, entity graphs and agent observability.
     selection:
       mode: explicit
       include:
