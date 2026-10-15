@@ -185,6 +185,37 @@ beneath one upstream root should be installed:
       - experimental-skill
 ```
 
+### Route Large Collections
+
+Every installed skill's name and description sits in each agent session, so a
+collection of dozens of skills crowds discovery even when it is rarely used.
+Add a `router` to collapse a dependency into one skill:
+
+```yaml
+- id: example-collection
+  url: https://github.com/example/agent-skills.git
+  router:
+    name: example-skills
+    description: >-
+      Use for Example work: the concrete situations any of its skills cover.
+  selection:
+    mode: explicit
+    include:
+      - source: skills/reviewing
+        destination: reviewing
+```
+
+`skillctl sync` installs `_managed/example-skills/SKILL.md`, an index of each
+selected skill with its description, and nests the skills under
+`_managed/example-skills/skills/<destination>/`. Each nested `SKILL.md` is
+renamed `GUIDE.md` so harnesses that search recursively still discover only the
+router. The agent loads the router, picks a guide, and follows it. Write the
+router description to cover every situation its skills handle; it is the only
+text agents see before loading it.
+
+Nested destinations only need to be unique within their router. A nested skill
+cannot be invoked directly by name.
+
 Prefer explicit selection when only a reviewed subset is wanted. Before
 committing a dependency change, run a dry run, inspect the resolved tree, apply
 the synchronization, and run the tests.

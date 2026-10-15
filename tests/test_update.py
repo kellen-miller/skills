@@ -361,7 +361,7 @@ class ManifestTest(unittest.TestCase):
         discovery["selection"] = {"mode": "discovery", "root": "skills"}
         cases = {
             "must be a boolean": explicit_dependency(claude="no"),
-            "requires explicit selection": discovery,
+            "requires explicit selection or a router": discovery,
         }
         for message, dependency in cases.items():
             with self.subTest(message=message):
@@ -369,6 +369,44 @@ class ManifestTest(unittest.TestCase):
                     self.module.load_manifest(
                         self.load({"version": 1, "dependencies": [dependency]})
                     )
+
+    def test_router_validation_and_collisions(self):
+        router = {"name": "vendor", "description": "Use for vendor work."}
+        discovery = explicit_dependency(claude=False, router=router)
+        discovery["selection"] = {"mode": "discovery", "root": "skills"}
+        dependencies, _ = self.module.load_manifest(
+            self.load({"version": 1, "dependencies": [discovery]})
+        )
+        self.assertEqual(dependencies[0]["router"], router)
+
+        same_destination = explicit_dependency(id="other")
+        cases = {
+            "unknown keys": (explicit_dependency(router={**router, "x": 1}), ()),
+            "description must be a string": (
+                explicit_dependency(router={"name": "vendor", "description": " "}),
+                (),
+            ),
+            "safe directory name": (
+                explicit_dependency(router={**router, "name": "../x"}),
+                (),
+            ),
+            "authored skill": (explicit_dependency(router=router), ("vendor",)),
+        }
+        for message, (dependency, authored) in cases.items():
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(self.module.ManifestError, message):
+                    self.module.load_manifest(
+                        self.load(
+                            {"version": 1, "dependencies": [dependency]},
+                            authored=authored,
+                        )
+                    )
+
+        nested = explicit_dependency(router=router)
+        dependencies, _ = self.module.load_manifest(
+            self.load({"version": 1, "dependencies": [nested, same_destination]})
+        )
+        self.assertEqual(len(dependencies), 2)
 
     def test_detects_authored_roots_without_hardcoded_names(self):
         root = self.load(authored=("custom-authored",))
@@ -444,6 +482,29 @@ class MaterializationTest(unittest.TestCase):
 
         content = (self.root / "_managed" / "example-alpha" / "SKILL.md").read_text()
         self.assertEqual(content, "---\nname: example-alpha\n---\n")
+
+    def test_router_nests_skills_behind_one_index(self):
+        router = {"name": "vendor", "description": "Use for  vendor\n work."}
+        write_manifest(self.root, [explicit_dependency(router=router)])
+        (self.root / "_managed" / "alpha").mkdir(parents=True)
+
+        output = self.materialize()
+
+        self.assertIn("ADD vendor", output)
+        self.assertIn("REMOVE alpha", output)
+        managed = self.root / "_managed"
+        self.assertEqual([path.name for path in managed.iterdir()], ["vendor"])
+        guide = managed / "vendor" / "skills" / "alpha"
+        self.assertEqual(sorted(path.name for path in guide.iterdir()), ["GUIDE.md"])
+        self.assertEqual(
+            list((managed / "vendor").rglob("SKILL.md")),
+            [managed / "vendor" / "SKILL.md"],
+        )
+        index = (managed / "vendor" / "SKILL.md").read_text()
+        self.assertTrue(
+            index.startswith('---\nname: vendor\ndescription: "Use for vendor work."\n')
+        )
+        self.assertIn("- `alpha` (`skills/alpha/GUIDE.md`)\n", index)
 
     def test_dry_run_stages_without_mutating_live_tree(self):
         old = self.root / "_managed"
