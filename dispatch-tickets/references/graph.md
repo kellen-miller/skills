@@ -34,7 +34,7 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
       "brief": "tasks/cli.md",
       "depends_on": ["export"],
       "owned_paths": ["src/cli.py", "tests/test_cli.py"],
-      "worker_command": ["claude", "-p", "--model", "<selected-provider-implementation-model>", "--permission-mode", "acceptEdits"],
+      "worker_command": ["claude", "-p", "--model", "<selected-provider-implementation-model>", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(uv run --locked python -m unittest:*)", "--disallowedTools", "Agent", "--output-format", "stream-json", "--verbose"],
       "checks": [["uv", "run", "--locked", "python", "-m", "unittest", "tests.test_cli"]]
     }
   ]
@@ -50,6 +50,17 @@ Per-ticket `worker_command` replaces the default array entirely, allowing a
 provider or model appropriate to each task. A wrapper can adapt any CLI that
 does not directly accept stdin. Commands run without a shell; shell features
 require an explicitly chosen shell in the array.
+
+Claude Code workers (`claude -p`, verified nested inside a Claude Code
+session): `-p` reads the brief from stdin. `acceptEdits` allows edits and
+read-only shell, but denies other Bash noninteractively and still exits 0, so
+the worker silently skips its own validation; allowlist each check command with
+`--allowedTools "Bash(<prefix>:*)"` instead of bypassing permissions. Disallow
+`Agent` so workers do not fan out. `stream-json --verbose` makes the attempt log
+show model, tool calls and `permission_denials`. `--effort` sets reasoning.
+
+Check and test runs must not leave untracked artifacts (`__pycache__`, build
+output) that the repository does not ignore; they count as unowned changes.
 
 `base_ref` must be an explicit Git ref whose commit is an ancestor of integration
 HEAD. The script records each worker's exact integration starting commit,

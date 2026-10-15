@@ -62,7 +62,10 @@ not. The script does not push, publish a PR, write to issue trackers, deploy,
 or conduct the final independent review.
 
 Monitor the foreground process through the runtime's resumable execution tools;
-keep user updates concise. The script launches only tickets whose prerequisites
+keep user updates concise. In Claude Code, start `run` with Bash
+`run_in_background` (foreground calls cap at 10 minutes, below the worker
+timeout) and wait for its exit notification; read `dispatch/state.json` and
+attempt logs meanwhile. The script launches only tickets whose prerequisites
 have passed integrated checks, fills available capacity, and serializes tickets
 with overlapping owned paths. It integrates completed results one at a time and
 runs the graph's integration checks before releasing dependent tasks.
