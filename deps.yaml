@@ -15,14 +15,28 @@ dependencies:
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
-      exclude:
-        - executing-plans
-        - test-driven-development
-        - writing-plans
-        - brainstorming
-        - using-superpowers
+      mode: explicit
+      include:
+        - source: skills/diagnosing-superpowers
+          destination: diagnosing-superpowers
+        - source: skills/dispatching-parallel-agents
+          destination: dispatching-parallel-agents
+        - source: skills/finishing-a-development-branch
+          destination: finishing-a-development-branch
+        - source: skills/receiving-code-review
+          destination: receiving-code-review
+        - source: skills/requesting-code-review
+          destination: requesting-code-review
+        - source: skills/subagent-driven-development
+          destination: subagent-driven-development
+        - source: skills/systematic-debugging
+          destination: systematic-debugging
+        - source: skills/using-git-worktrees
+          destination: using-git-worktrees
+        - source: skills/verification-before-completion
+          destination: verification-before-completion
+        - source: skills/writing-skills
+          destination: writing-skills
   - id: terraform-skill
     url: https://github.com/antonbabenko/terraform-skill.git
     selection:
@@ -35,15 +49,75 @@ dependencies:
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
+      mode: explicit
+      include:
+        - source: skills/agents-sdk
+          destination: agents-sdk
+        - source: skills/basin
+          destination: basin
+        - source: skills/cf-cli
+          destination: cf-cli
+        - source: skills/cloudflare
+          destination: cloudflare
+        - source: skills/cloudflare-email-service
+          destination: cloudflare-email-service
+        - source: skills/cloudflare-one
+          destination: cloudflare-one
+        - source: skills/cloudflare-one-migrations
+          destination: cloudflare-one-migrations
+        - source: skills/durable-objects
+          destination: durable-objects
+        - source: skills/k2
+          destination: k2
+        - source: skills/nextjs-on-cloudflare
+          destination: nextjs-on-cloudflare
+        - source: skills/sandbox-migrate-to-next
+          destination: sandbox-migrate-to-next
+        - source: skills/sandbox-next
+          destination: sandbox-next
+        - source: skills/sandbox-stable
+          destination: sandbox-stable
+        - source: skills/turnstile-spin
+          destination: turnstile-spin
+        - source: skills/web-perf
+          destination: web-perf
+        - source: skills/workers-best-practices
+          destination: workers-best-practices
+        - source: skills/workers-profiling
+          destination: workers-profiling
+        - source: skills/wrangler
+          destination: wrangler
   - id: datadog-pup
     url: https://github.com/DataDog/pup.git
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
+      mode: explicit
+      include:
+        - source: skills/dd-apm
+          destination: dd-apm
+        - source: skills/dd-code-generation
+          destination: dd-code-generation
+        - source: skills/dd-debugger
+          destination: dd-debugger
+        - source: skills/dd-docs
+          destination: dd-docs
+        - source: skills/dd-file-issue
+          destination: dd-file-issue
+        - source: skills/dd-idp
+          destination: dd-idp
+        - source: skills/dd-logs
+          destination: dd-logs
+        - source: skills/dd-monitors
+          destination: dd-monitors
+        - source: skills/dd-pup
+          destination: dd-pup
+        - source: skills/dd-symdb
+          destination: dd-symdb
+        - source: skills/dd-triage-flaky-test
+          destination: dd-triage-flaky-test
+        - source: skills/dd-unblock-pr
+          destination: dd-unblock-pr
   - id: openfga
     url: https://github.com/openfga/agent-skills.git
     sparse:
@@ -58,8 +132,198 @@ dependencies:
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
+      mode: explicit
+      include:
+        - source: skills/gws-admin-reports
+          destination: gws-admin-reports
+        - source: skills/gws-calendar
+          destination: gws-calendar
+        - source: skills/gws-calendar-agenda
+          destination: gws-calendar-agenda
+        - source: skills/gws-calendar-insert
+          destination: gws-calendar-insert
+        - source: skills/gws-chat
+          destination: gws-chat
+        - source: skills/gws-chat-send
+          destination: gws-chat-send
+        - source: skills/gws-classroom
+          destination: gws-classroom
+        - source: skills/gws-docs
+          destination: gws-docs
+        - source: skills/gws-docs-write
+          destination: gws-docs-write
+        - source: skills/gws-drive
+          destination: gws-drive
+        - source: skills/gws-drive-upload
+          destination: gws-drive-upload
+        - source: skills/gws-events
+          destination: gws-events
+        - source: skills/gws-events-renew
+          destination: gws-events-renew
+        - source: skills/gws-events-subscribe
+          destination: gws-events-subscribe
+        - source: skills/gws-forms
+          destination: gws-forms
+        - source: skills/gws-gmail
+          destination: gws-gmail
+        - source: skills/gws-gmail-forward
+          destination: gws-gmail-forward
+        - source: skills/gws-gmail-read
+          destination: gws-gmail-read
+        - source: skills/gws-gmail-reply
+          destination: gws-gmail-reply
+        - source: skills/gws-gmail-reply-all
+          destination: gws-gmail-reply-all
+        - source: skills/gws-gmail-send
+          destination: gws-gmail-send
+        - source: skills/gws-gmail-triage
+          destination: gws-gmail-triage
+        - source: skills/gws-gmail-watch
+          destination: gws-gmail-watch
+        - source: skills/gws-keep
+          destination: gws-keep
+        - source: skills/gws-meet
+          destination: gws-meet
+        - source: skills/gws-modelarmor
+          destination: gws-modelarmor
+        - source: skills/gws-modelarmor-create-template
+          destination: gws-modelarmor-create-template
+        - source: skills/gws-modelarmor-sanitize-prompt
+          destination: gws-modelarmor-sanitize-prompt
+        - source: skills/gws-modelarmor-sanitize-response
+          destination: gws-modelarmor-sanitize-response
+        - source: skills/gws-people
+          destination: gws-people
+        - source: skills/gws-script
+          destination: gws-script
+        - source: skills/gws-script-push
+          destination: gws-script-push
+        - source: skills/gws-shared
+          destination: gws-shared
+        - source: skills/gws-sheets
+          destination: gws-sheets
+        - source: skills/gws-sheets-append
+          destination: gws-sheets-append
+        - source: skills/gws-sheets-read
+          destination: gws-sheets-read
+        - source: skills/gws-slides
+          destination: gws-slides
+        - source: skills/gws-tasks
+          destination: gws-tasks
+        - source: skills/gws-workflow
+          destination: gws-workflow
+        - source: skills/gws-workflow-email-to-task
+          destination: gws-workflow-email-to-task
+        - source: skills/gws-workflow-file-announce
+          destination: gws-workflow-file-announce
+        - source: skills/gws-workflow-meeting-prep
+          destination: gws-workflow-meeting-prep
+        - source: skills/gws-workflow-standup-report
+          destination: gws-workflow-standup-report
+        - source: skills/gws-workflow-weekly-digest
+          destination: gws-workflow-weekly-digest
+        - source: skills/persona-content-creator
+          destination: persona-content-creator
+        - source: skills/persona-customer-support
+          destination: persona-customer-support
+        - source: skills/persona-event-coordinator
+          destination: persona-event-coordinator
+        - source: skills/persona-exec-assistant
+          destination: persona-exec-assistant
+        - source: skills/persona-hr-coordinator
+          destination: persona-hr-coordinator
+        - source: skills/persona-it-admin
+          destination: persona-it-admin
+        - source: skills/persona-project-manager
+          destination: persona-project-manager
+        - source: skills/persona-researcher
+          destination: persona-researcher
+        - source: skills/persona-sales-ops
+          destination: persona-sales-ops
+        - source: skills/persona-team-lead
+          destination: persona-team-lead
+        - source: skills/recipe-backup-sheet-as-csv
+          destination: recipe-backup-sheet-as-csv
+        - source: skills/recipe-batch-invite-to-event
+          destination: recipe-batch-invite-to-event
+        - source: skills/recipe-block-focus-time
+          destination: recipe-block-focus-time
+        - source: skills/recipe-bulk-download-folder
+          destination: recipe-bulk-download-folder
+        - source: skills/recipe-collect-form-responses
+          destination: recipe-collect-form-responses
+        - source: skills/recipe-compare-sheet-tabs
+          destination: recipe-compare-sheet-tabs
+        - source: skills/recipe-copy-sheet-for-new-month
+          destination: recipe-copy-sheet-for-new-month
+        - source: skills/recipe-create-classroom-course
+          destination: recipe-create-classroom-course
+        - source: skills/recipe-create-doc-from-template
+          destination: recipe-create-doc-from-template
+        - source: skills/recipe-create-events-from-sheet
+          destination: recipe-create-events-from-sheet
+        - source: skills/recipe-create-expense-tracker
+          destination: recipe-create-expense-tracker
+        - source: skills/recipe-create-feedback-form
+          destination: recipe-create-feedback-form
+        - source: skills/recipe-create-gmail-filter
+          destination: recipe-create-gmail-filter
+        - source: skills/recipe-create-meet-space
+          destination: recipe-create-meet-space
+        - source: skills/recipe-create-presentation
+          destination: recipe-create-presentation
+        - source: skills/recipe-create-shared-drive
+          destination: recipe-create-shared-drive
+        - source: skills/recipe-create-task-list
+          destination: recipe-create-task-list
+        - source: skills/recipe-create-vacation-responder
+          destination: recipe-create-vacation-responder
+        - source: skills/recipe-draft-email-from-doc
+          destination: recipe-draft-email-from-doc
+        - source: skills/recipe-email-drive-link
+          destination: recipe-email-drive-link
+        - source: skills/recipe-find-free-time
+          destination: recipe-find-free-time
+        - source: skills/recipe-find-large-files
+          destination: recipe-find-large-files
+        - source: skills/recipe-forward-labeled-emails
+          destination: recipe-forward-labeled-emails
+        - source: skills/recipe-generate-report-from-sheet
+          destination: recipe-generate-report-from-sheet
+        - source: skills/recipe-label-and-archive-emails
+          destination: recipe-label-and-archive-emails
+        - source: skills/recipe-log-deal-update
+          destination: recipe-log-deal-update
+        - source: skills/recipe-organize-drive-folder
+          destination: recipe-organize-drive-folder
+        - source: skills/recipe-plan-weekly-schedule
+          destination: recipe-plan-weekly-schedule
+        - source: skills/recipe-post-mortem-setup
+          destination: recipe-post-mortem-setup
+        - source: skills/recipe-reschedule-meeting
+          destination: recipe-reschedule-meeting
+        - source: skills/recipe-review-meet-participants
+          destination: recipe-review-meet-participants
+        - source: skills/recipe-review-overdue-tasks
+          destination: recipe-review-overdue-tasks
+        - source: skills/recipe-save-email-attachments
+          destination: recipe-save-email-attachments
+        - source: skills/recipe-save-email-to-doc
+          destination: recipe-save-email-to-doc
+        - source: skills/recipe-schedule-recurring-event
+          destination: recipe-schedule-recurring-event
+        - source: skills/recipe-send-team-announcement
+          destination: recipe-send-team-announcement
+        - source: skills/recipe-share-doc-and-notify
+          destination: recipe-share-doc-and-notify
+        - source: skills/recipe-share-event-materials
+          destination: recipe-share-event-materials
+        - source: skills/recipe-share-folder-with-team
+          destination: recipe-share-folder-with-team
+        - source: skills/recipe-sync-contacts-to-sheet
+          destination: recipe-sync-contacts-to-sheet
+        - source: skills/recipe-watch-drive-changes
+          destination: recipe-watch-drive-changes
   - id: unslop-ai-text
     url: https://github.com/JCarterJohnson/vibecoded-design-tells.git
     sparse:
@@ -73,8 +337,22 @@ dependencies:
     url: https://github.com/grp06/useful-codex-skills.git
     ref: codex/add-grillcraft
     selection:
-      mode: discovery
-      root: .
+      mode: explicit
+      include:
+        - source: execplan-create
+          destination: execplan-create
+        - source: execplan-improve
+          destination: execplan-improve
+        - source: goalcraft
+          destination: goalcraft
+        - source: grill-me
+          destination: grill-me
+        - source: grillcraft
+          destination: grillcraft
+        - source: implement-execplan
+          destination: implement-execplan
+        - source: review-recent-work
+          destination: review-recent-work
   - id: mattpocock-skills
     url: https://github.com/mattpocock/skills.git
     sparse:
@@ -361,19 +639,187 @@ dependencies:
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
+      mode: explicit
+      include:
+        - source: skills/airunway-aks-setup
+          destination: airunway-aks-setup
+        - source: skills/appinsights-instrumentation
+          destination: appinsights-instrumentation
+        - source: skills/azure-ai
+          destination: azure-ai
+        - source: skills/azure-aigateway
+          destination: azure-aigateway
+        - source: skills/azure-app-onboard
+          destination: azure-app-onboard
+        - source: skills/azure-app-onboard-prereq
+          destination: azure-app-onboard-prereq
+        - source: skills/azure-cloud-migrate
+          destination: azure-cloud-migrate
+        - source: skills/azure-compliance
+          destination: azure-compliance
+        - source: skills/azure-compute
+          destination: azure-compute
+        - source: skills/azure-deploy
+          destination: azure-deploy
+        - source: skills/azure-diagnostics
+          destination: azure-diagnostics
+        - source: skills/azure-enterprise-infra-planner
+          destination: azure-enterprise-infra-planner
+        - source: skills/azure-kubernetes
+          destination: azure-kubernetes
+        - source: skills/azure-kusto
+          destination: azure-kusto
+        - source: skills/azure-messaging
+          destination: azure-messaging
+        - source: skills/azure-prepare
+          destination: azure-prepare
+        - source: skills/azure-quotas
+          destination: azure-quotas
+        - source: skills/azure-reliability
+          destination: azure-reliability
+        - source: skills/azure-resource-lookup
+          destination: azure-resource-lookup
+        - source: skills/azure-resource-visualizer
+          destination: azure-resource-visualizer
+        - source: skills/azure-storage
+          destination: azure-storage
+        - source: skills/azure-upgrade
+          destination: azure-upgrade
+        - source: skills/azure-validate
+          destination: azure-validate
+        - source: skills/discover-azure-skills
+          destination: discover-azure-skills
+        - source: skills/entra-agent-id
+          destination: entra-agent-id
+        - source: skills/entra-app-registration
+          destination: entra-app-registration
+        - source: skills/microsoft-foundry
+          destination: microsoft-foundry
+        - source: skills/python-appservice-deploy
+          destination: python-appservice-deploy
   - id: redpanda-skills
     url: https://github.com/redpanda-data/skills.git
     sparse:
       - skills
     selection:
-      mode: discovery
-      root: skills
+      mode: explicit
+      include:
+        - source: skills/adp
+          destination: adp
+        - source: skills/cloud-byoc
+          destination: cloud-byoc
+        - source: skills/cloud-dedicated
+          destination: cloud-dedicated
+        - source: skills/cloud-serverless
+          destination: cloud-serverless
+        - source: skills/connect
+          destination: connect
+        - source: skills/connect-cdc-dynamodb
+          destination: connect-cdc-dynamodb
+        - source: skills/connect-cdc-mongodb
+          destination: connect-cdc-mongodb
+        - source: skills/connect-cdc-mysql
+          destination: connect-cdc-mysql
+        - source: skills/connect-cdc-oracle
+          destination: connect-cdc-oracle
+        - source: skills/connect-cdc-postgres
+          destination: connect-cdc-postgres
+        - source: skills/connect-cdc-salesforce
+          destination: connect-cdc-salesforce
+        - source: skills/connect-cdc-spanner
+          destination: connect-cdc-spanner
+        - source: skills/connect-cdc-sqlserver
+          destination: connect-cdc-sqlserver
+        - source: skills/connect-cdc-tigerbeetle
+          destination: connect-cdc-tigerbeetle
+        - source: skills/connect-debugging
+          destination: connect-debugging
+        - source: skills/rpk
+          destination: rpk
+        - source: skills/rpk-cloud
+          destination: rpk-cloud
+        - source: skills/rpk-cluster
+          destination: rpk-cluster
+        - source: skills/rpk-debug
+          destination: rpk-debug
+        - source: skills/rpk-group
+          destination: rpk-group
+        - source: skills/rpk-redpanda
+          destination: rpk-redpanda
+        - source: skills/rpk-registry
+          destination: rpk-registry
+        - source: skills/rpk-security
+          destination: rpk-security
+        - source: skills/rpk-topic
+          destination: rpk-topic
+        - source: skills/rpk-transform
+          destination: rpk-transform
+        - source: skills/sql
+          destination: sql
+        - source: skills/sql-admin-api
+          destination: sql-admin-api
+        - source: skills/sql-debugging
+          destination: sql-debugging
+        - source: skills/sql-federated-queries
+          destination: sql-federated-queries
+        - source: skills/streaming
+          destination: streaming
+        - source: skills/streaming-admin-api
+          destination: streaming-admin-api
+        - source: skills/streaming-debugging
+          destination: streaming-debugging
   - id: grafana-gcx
     url: https://github.com/grafana/gcx.git
     sparse:
       - claude-plugin/skills
     selection:
-      mode: discovery
-      root: claude-plugin/skills
+      mode: explicit
+      include:
+        - source: claude-plugin/skills/agento11y
+          destination: agento11y
+        - source: claude-plugin/skills/agento11y-instrument
+          destination: agento11y-instrument
+        - source: claude-plugin/skills/agento11y-prod-setup
+          destination: agento11y-prod-setup
+        - source: claude-plugin/skills/agento11y-test-starter
+          destination: agento11y-test-starter
+        - source: claude-plugin/skills/create-dashboard
+          destination: create-dashboard
+        - source: claude-plugin/skills/debug-with-grafana
+          destination: debug-with-grafana
+        - source: claude-plugin/skills/diagnose-entity-graph
+          destination: diagnose-entity-graph
+        - source: claude-plugin/skills/gcx
+          destination: gcx
+        - source: claude-plugin/skills/gcx-demo
+          destination: gcx-demo
+        - source: claude-plugin/skills/gcx-observability
+          destination: gcx-observability
+        - source: claude-plugin/skills/generate-resource-stubs
+          destination: generate-resource-stubs
+        - source: claude-plugin/skills/import-dashboards
+          destination: import-dashboards
+        - source: claude-plugin/skills/investigate-alert
+          destination: investigate-alert
+        - source: claude-plugin/skills/manage-dashboards
+          destination: manage-dashboards
+        - source: claude-plugin/skills/oncall-triage
+          destination: oncall-triage
+        - source: claude-plugin/skills/scaffold-project
+          destination: scaffold-project
+        - source: claude-plugin/skills/setup-gcx
+          destination: setup-gcx
+        - source: claude-plugin/skills/slo-check-status
+          destination: slo-check-status
+        - source: claude-plugin/skills/slo-investigate
+          destination: slo-investigate
+        - source: claude-plugin/skills/slo-manage
+          destination: slo-manage
+        - source: claude-plugin/skills/slo-optimize
+          destination: slo-optimize
+        - source: claude-plugin/skills/synth-check-status
+          destination: synth-check-status
+        - source: claude-plugin/skills/synth-investigate-check
+          destination: synth-investigate-check
+        - source: claude-plugin/skills/synth-manage-checks
+          destination: synth-manage-checks

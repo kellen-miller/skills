@@ -45,5 +45,5 @@ jobs:
           uv run --locked ruff format --check .
           uv run --locked python -m unittest discover -s tests -v
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
-            GIT_TERMINAL_PROMPT=0 uv run --locked skillctl sync
+            GIT_TERMINAL_PROMPT=0 uv run --locked skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
