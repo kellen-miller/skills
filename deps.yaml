@@ -735,6 +735,14 @@ dependencies:
     url: https://github.com/redpanda-data/skills.git
     sparse:
       - skills
+    router:
+      name: redpanda-skills
+      description: >-
+        Use for working with Redpanda products as a user: rpk CLI commands
+        (cluster, topic, group, registry, security, transform, debug, cloud),
+        Redpanda Streaming and its Admin API, Redpanda Connect pipelines and
+        CDC sources, Redpanda SQL, the Agentic Data Plane, and Redpanda Cloud
+        BYOC, Dedicated, or Serverless clusters.
     selection:
       mode: explicit
       include:
