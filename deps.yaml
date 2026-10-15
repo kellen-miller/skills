@@ -252,11 +252,11 @@ dependencies:
           destination: setting-up-ec2-instance-profiles
         - source: skills/specialized-skills/end-user-computing-skills/amazon-workspaces-agent-access
           destination: amazon-workspaces-agent-access
-        - source: skills/specialized-skills/messaging-and-streaming-skills/amazon-ses
+        - source: skills/specialized-skills/customer-communications-skills/amazon-ses
           destination: amazon-ses
-        - source: skills/specialized-skills/messaging-and-streaming-skills/aws-sms-voice
+        - source: skills/specialized-skills/customer-communications-skills/aws-sms-voice
           destination: aws-sms-voice
-        - source: skills/specialized-skills/messaging-and-streaming-skills/aws-social-messaging
+        - source: skills/specialized-skills/customer-communications-skills/aws-social-messaging
           destination: aws-social-messaging
         - source: skills/specialized-skills/migration-and-modernization-skills/aws-transform
           destination: aws-transform
