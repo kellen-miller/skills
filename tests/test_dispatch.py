@@ -59,6 +59,7 @@ class DispatchTest(unittest.TestCase):
             "    time.sleep(30)\n"
             "if mode == 'fail': raise SystemExit(7)\n"
             "if mode == 'outside': pathlib.Path('outside.txt').write_text('bad')\n"
+            "if mode == 'git-rm': subprocess.run(['git', 'rm', '-q', 'README.md'], check=True)\n"
             "if mode != 'empty': pathlib.Path(ticket + '.txt').write_text(ticket + '\\n')\n"
         )
         self.data = {
@@ -186,6 +187,15 @@ class DispatchTest(unittest.TestCase):
                 self.assertIn(error, result.stderr)
                 self.assertFalse((self.work / "dispatch").exists())
                 self.assertEqual(self.git("rev-parse", "HEAD").strip(), self.initial)
+
+    def test_deletions_staged_by_the_worker_are_integrated(self):
+        self.data["tickets"][0]["worker_command"][-1] = "git-rm"
+        self.data["tickets"][0]["owned_paths"] = ["a.txt", "README.md"]
+        result = self.call("run", "--jobs", "1")
+        self.assert_passed(result)
+        self.assertEqual(self.state()["tasks"]["a"]["status"], "integrated")
+        self.assertFalse((self.repo / "README.md").exists())
+        self.assertEqual(self.git("ls-files", "README.md"), "")
 
     def test_unowned_changes_are_retained_and_never_integrated(self):
         self.data["tickets"][0]["worker_command"][-1] = "outside"

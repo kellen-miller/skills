@@ -717,7 +717,10 @@ def run(args, repo, graph_path, graph, tasks, digest, directory):
                         "ticket produced no changes; inspect acceptance and task scope"
                     )
 
-                git(worker, "add", "--", *paths)
+                # Workers may stage deletions themselves (git rm); a pathspec for a
+                # file that is gone from both index and worktree fails, so stage
+                # everything. verify_worker already rejected unowned changes.
+                git(worker, "add", "--all")
                 git(worker, "commit", "-m", tasks[task_id]["commit_message"])
                 item.update(
                     status="validated",
