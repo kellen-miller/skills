@@ -10,4 +10,4 @@ jobs:
   workflows:
     uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@d1c91763535a5866b55282018f301d921b22bcd5
   renovate:
-    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@d1c91763535a5866b55282018f301d921b22bcd5
+    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@e3badfe2c992d394f4f177e7f535561a0388ea91
