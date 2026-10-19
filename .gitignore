@@ -1,6 +1,7 @@
 _managed/
 ._managed.backup.*/
 .skillctl.lock
+.skillctl-state.json*
 deps.local.yaml
 
 .venv/

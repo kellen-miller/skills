@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -442,6 +443,7 @@ class MaterializationTest(unittest.TestCase):
                 "GIT_CONFIG_COUNT": "1",
                 "GIT_CONFIG_KEY_0": "url.file://" + str(self.source) + ".insteadOf",
                 "GIT_CONFIG_VALUE_0": "https://github.com/example/source.git",
+                "XDG_CACHE_HOME": str(Path(self.temporary.name) / "cache"),
             },
         )
         self.environment.start()
@@ -472,6 +474,299 @@ class MaterializationTest(unittest.TestCase):
         self.assertNotIn("ADD ", second)
         self.assertNotIn("REMOVE ", second)
         self.assertNotIn("UPDATE ", second)
+
+    def commit_source(self):
+        subprocess.run(["git", "-C", self.source, "add", "-A"], check=True)
+        subprocess.run(
+            ["git", "-C", self.source, "commit", "-qm", "Update fixture"], check=True
+        )
+
+    def test_unchanged_sync_fetches_without_copying_or_replacing(self):
+        self.materialize()
+        installed = self.root / "_managed" / "alpha" / "SKILL.md"
+        before = installed.stat()
+        with (
+            mock.patch.object(self.module, "run_git", wraps=self.module.run_git) as git,
+            mock.patch.object(
+                self.module.shutil, "copytree", wraps=self.module.shutil.copytree
+            ) as copy,
+        ):
+            self.materialize()
+
+        self.assertTrue(any(c.args[0][0] == "fetch" for c in git.call_args_list))
+        self.assertFalse(any(c.args[0][0] == "init" for c in git.call_args_list))
+        copy.assert_not_called()
+        self.assertEqual(installed.stat().st_ino, before.st_ino)
+        self.assertEqual(installed.stat().st_mtime_ns, before.st_mtime_ns)
+
+    def test_unselected_upstream_change_skips_generation(self):
+        self.materialize()
+        (self.source / "README.md").write_text("Unrelated change")
+        self.commit_source()
+        with mock.patch.object(
+            self.module.shutil, "copytree", wraps=self.module.shutil.copytree
+        ) as copy:
+            self.materialize()
+
+        copy.assert_not_called()
+
+    def test_upstream_and_destination_rename_remove_old_layout(self):
+        self.materialize()
+        (self.source / "skills" / "alpha").rename(self.source / "skills" / "beta")
+        self.commit_source()
+        dependency = explicit_dependency()
+        dependency["selection"]["include"] = [
+            {"source": "skills/beta", "destination": "beta"}
+        ]
+        write_manifest(self.root, [dependency])
+
+        output = self.materialize()
+
+        self.assertIn("REMOVE alpha", output)
+        self.assertEqual([p.name for p in (self.root / "_managed").iterdir()], ["beta"])
+
+    def test_upstream_deletion_preserves_installed_tree(self):
+        self.materialize()
+        shutil.rmtree(self.source / "skills" / "alpha")
+        (self.source / "README.md").write_text("Skill removed")
+        self.commit_source()
+        with self.assertRaisesRegex(RuntimeError, "source is not a skill"):
+            self.materialize()
+
+        self.assertTrue((self.root / "_managed" / "alpha" / "SKILL.md").is_file())
+
+    def test_repairs_live_edits_missing_files_and_extra_directories(self):
+        self.materialize()
+        managed = self.root / "_managed"
+        skill = managed / "alpha" / "SKILL.md"
+        skill.write_text("Local edit")
+        self.materialize()
+        self.assertIn("name: alpha", skill.read_text())
+        skill.unlink()
+        (managed / "obsolete").mkdir()
+        self.materialize()
+        self.assertTrue(skill.is_file())
+        self.assertFalse((managed / "obsolete").exists())
+        git_directory = managed / "alpha/.git"
+        git_directory.mkdir()
+        (git_directory / "config").write_text("Local repository metadata")
+        self.materialize()
+        self.assertFalse(git_directory.exists())
+
+    def test_cleared_or_corrupt_cache_recovers(self):
+        self.materialize()
+        cache = Path(os.environ["XDG_CACHE_HOME"]) / "skillctl"
+        shutil.rmtree(cache)
+        self.materialize()
+        for git_dir in cache.glob("repos/*/.git"):
+            shutil.rmtree(git_dir)
+
+        self.materialize()
+        self.assertTrue(list(cache.glob("repos/*/.git")))
+
+    def test_router_change_replaces_flat_layout(self):
+        self.materialize()
+        write_manifest(
+            self.root,
+            [explicit_dependency(router={"name": "vendor", "description": "Vendor"})],
+        )
+        self.materialize()
+        managed = self.root / "_managed"
+        self.assertFalse((managed / "alpha").exists())
+        self.assertTrue((managed / "vendor/skills/alpha/GUIDE.md").is_file())
+
+    def test_corrupt_state_rebuilds_without_replacing_identical_output(self):
+        self.materialize()
+        installed = self.root / "_managed/alpha/SKILL.md"
+        before = installed.stat().st_ino
+        (self.root / ".skillctl-state.json").write_text("broken")
+        self.materialize()
+        self.assertEqual(installed.stat().st_ino, before)
+
+    def test_discovery_removes_renamed_upstream_skill(self):
+        dependency = explicit_dependency()
+        dependency["selection"] = {"mode": "discovery", "root": "skills"}
+        write_manifest(self.root, [dependency])
+        self.materialize()
+        (self.source / "skills/alpha").rename(self.source / "skills/beta")
+        self.commit_source()
+
+        output = self.materialize()
+
+        self.assertIn("REMOVE alpha", output)
+        self.assertIn("ADD beta", output)
+        self.assertFalse((self.root / "_managed/alpha").exists())
+
+    def test_removing_all_dependencies_clears_managed_tree(self):
+        self.materialize()
+        (self.root / "deps.yaml").write_text("version: 1\ndependencies: []\n")
+        self.materialize()
+        self.assertEqual(list((self.root / "_managed").iterdir()), [])
+
+    def test_warm_fetch_failure_does_not_use_stale_cache(self):
+        self.materialize()
+        installed = self.root / "_managed/alpha/SKILL.md"
+        before = installed.stat().st_ino
+        self.source.rename(self.source.with_name("offline"))
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.materialize()
+
+        self.assertEqual(installed.stat().st_ino, before)
+
+    def test_dry_run_does_not_advance_state(self):
+        self.materialize()
+        state = self.root / ".skillctl-state.json"
+        before = state.read_bytes()
+        (self.source / "skills/alpha/SKILL.md").write_text("Updated skill")
+        self.commit_source()
+        self.assertIn("UPDATE alpha", self.materialize(dry_run=True))
+        self.assertEqual(state.read_bytes(), before)
+        self.assertIn("UPDATE alpha", self.materialize())
+
+    def test_selected_file_deletion_removes_installed_file(self):
+        extra = self.source / "skills/alpha/obsolete.md"
+        extra.write_text("Old reference")
+        self.commit_source()
+        self.materialize()
+        extra.unlink()
+        self.commit_source()
+        self.materialize()
+        self.assertFalse((self.root / "_managed/alpha/obsolete.md").exists())
+
+    def test_symlink_target_outside_selected_subtree_invalidates_state(self):
+        reference = self.source / "shared.md"
+        reference.write_text("Original")
+        (self.source / "skills/alpha/reference.md").symlink_to("../../shared.md")
+        self.commit_source()
+        self.materialize()
+        reference.write_text("Updated reference")
+        self.commit_source()
+        self.materialize()
+        self.assertEqual(
+            (self.root / "_managed/alpha/reference.md").read_text(), "Updated reference"
+        )
+
+    def test_symlinked_source_ancestor_supports_install_and_updates(self):
+        (self.source / "alias").symlink_to("skills", target_is_directory=True)
+        self.commit_source()
+        dependency = explicit_dependency()
+        dependency["selection"]["include"][0]["source"] = "alias/alpha"
+        write_manifest(self.root, [dependency])
+        self.materialize()
+        (self.source / "skills/alpha/SKILL.md").write_text("Updated through alias")
+        self.commit_source()
+        self.materialize()
+        self.assertIn(
+            "Updated through alias", (self.root / "_managed/alpha/SKILL.md").read_text()
+        )
+
+    def test_acquisition_runs_with_four_bounded_workers(self):
+        dependencies = []
+        for index in range(5):
+            dependency = explicit_dependency(id=f"dep-{index}")
+            dependency["selection"]["include"][0]["destination"] = f"skill-{index}"
+            dependencies.append(dependency)
+
+        write_manifest(self.root, dependencies)
+        barrier = threading.Barrier(4, timeout=10)
+        lock = threading.Lock()
+        active = 0
+        peak = 0
+        acquire = self.module.acquire_dependency
+
+        def observed_acquire(dependency, cache_root):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+
+            try:
+                if dependency["id"] != "dep-4":
+                    barrier.wait()
+
+                return acquire(dependency, cache_root)
+            finally:
+                with lock:
+                    active -= 1
+
+        with mock.patch.object(
+            self.module, "acquire_dependency", side_effect=observed_acquire
+        ):
+            self.materialize()
+
+        self.assertEqual(peak, 4)
+        self.assertEqual(len(list((self.root / "_managed").iterdir())), 5)
+
+    def test_shared_cache_lock_prevents_other_worktree_mutation(self):
+        self.materialize()
+        cache = self.module.git_cache_root()
+        with self.module.sync_lock(cache):
+            with self.assertRaisesRegex(RuntimeError, "another sync is in progress"):
+                self.materialize()
+
+    def test_pinned_commit_is_supported(self):
+        commit = subprocess.check_output(
+            ["git", "-C", self.source, "rev-parse", "HEAD"], text=True
+        ).strip()
+        write_manifest(self.root, [explicit_dependency(ref=commit)])
+        self.materialize()
+        (self.source / "skills/alpha/SKILL.md").write_text("New version")
+        self.commit_source()
+        self.materialize()
+        self.assertNotIn(
+            "New version", (self.root / "_managed/alpha/SKILL.md").read_text()
+        )
+
+    def test_generator_change_invalidates_generation_state(self):
+        self.materialize()
+        generator = self.root / "generator.py"
+        generator.write_text("Changed rendering implementation")
+        with (
+            mock.patch.object(self.module, "__file__", str(generator)),
+            mock.patch.object(
+                self.module.shutil, "copytree", wraps=self.module.shutil.copytree
+            ) as copy,
+        ):
+            self.materialize()
+
+        copy.assert_called()
+
+    def test_sparse_path_change_uses_fresh_checkout(self):
+        write_manifest(self.root, [explicit_dependency(sparse=["skills"])])
+        self.materialize()
+        write_manifest(self.root, [explicit_dependency(sparse=["skills/alpha"])])
+        with mock.patch.object(
+            self.module, "run_git", wraps=self.module.run_git
+        ) as git:
+            self.materialize()
+
+        self.assertTrue(any(c.args[0][0] == "init" for c in git.call_args_list))
+
+    def test_default_branch_change_is_followed(self):
+        self.materialize()
+        subprocess.run(
+            ["git", "-C", self.source, "checkout", "-qb", "next"], check=True
+        )
+        (self.source / "skills/alpha/SKILL.md").write_text("New default branch")
+        self.commit_source()
+        self.materialize()
+        self.assertIn(
+            "New default branch", (self.root / "_managed/alpha/SKILL.md").read_text()
+        )
+
+    def test_force_updated_ref_is_followed(self):
+        write_manifest(self.root, [explicit_dependency(ref="main")])
+        self.materialize()
+        (self.source / "skills/alpha/SKILL.md").write_text("Rewritten history")
+        subprocess.run(["git", "-C", self.source, "add", "-A"], check=True)
+        subprocess.run(
+            ["git", "-C", self.source, "commit", "--amend", "--no-edit", "-q"],
+            check=True,
+        )
+        self.materialize()
+        self.assertIn(
+            "Rewritten history", (self.root / "_managed/alpha/SKILL.md").read_text()
+        )
 
     def test_rewrites_frontmatter_name_to_destination(self):
         dependency = explicit_dependency()
@@ -738,6 +1033,14 @@ class ClaudeInstallTest(unittest.TestCase):
         self.assertNotIn("ADD ", second)
         self.assertNotIn("UPDATE ", second)
         self.assertNotIn("REMOVE ", second)
+
+    def test_unchanged_install_keeps_existing_files(self):
+        self.install()
+        skill = self.target / "authored/SKILL.md"
+        before = skill.stat()
+        self.install()
+        self.assertEqual(skill.stat().st_ino, before.st_ino)
+        self.assertEqual(skill.stat().st_mtime_ns, before.st_mtime_ns)
 
     def test_updates_and_removes_only_owned_entries(self):
         self.install()
