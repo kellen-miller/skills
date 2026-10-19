@@ -24,9 +24,11 @@ isolated worktrees, retaining validation and recovery evidence.
 
 ## Requirements
 
+- macOS or Linux (uses POSIX file locks)
 - Git
-- Python 3.11 or newer
-- [`uv`](https://docs.astral.sh/uv/)
+- Go 1.25 or newer
+- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/) for development checks
+  and Python-based authored skill scripts
 - Network access to the Git repositories declared in `deps.yaml` and any
   machine-local overlay
 
@@ -40,8 +42,8 @@ git clone https://github.com/kellen-miller/skills.git \
   ~/development/github/kellen-miller/skills
 ln -s ~/development/github/kellen-miller/skills ~/.agents/skills
 cd ~/.agents/skills
-uv sync --locked
-uv run --locked skillctl sync
+go install ./cmd/skillctl
+skillctl sync
 ```
 
 If `~/.agents/skills` already exists, inspect it before creating the symlink.
@@ -56,9 +58,11 @@ configuration have been preserved.
 | `_managed/` | Generated | External skills materialized from the dependency manifests |
 | `deps.yaml` | Authored | Public, reproducible external dependency declarations |
 | `deps.local.yaml` | Machine-local | Ignored additions, extensions, and removals for one machine |
-| `src/skillctl/` | Authored | Manifest validation and atomic synchronization implementation |
-| `tests/` | Authored | Publication, synchronization, and workflow regression coverage |
-| `pyproject.toml` | Authored | Python package, CLI entry point, and development tooling |
+| `cmd/skillctl/` | Authored | Go command entry point |
+| `internal/skillctl/` | Authored | Manifest validation, synchronization, and embedded templates |
+| `go.mod`, `go.sum` | Authored/generated | Go module and verified dependency checksums |
+| `tests/` | Authored | Publication and authored skill regression coverage |
+| `pyproject.toml` | Authored | Python development tools for other authored skills |
 | `uv.lock` | Generated and tracked | Reproducible Python dependency lockfile |
 
 Never edit `_managed/` directly. It is disposable output owned by `skillctl`;
@@ -70,14 +74,20 @@ the next successful synchronization repairs any local changes. Change `deps.yaml
 Preview a synchronization without changing the live managed tree:
 
 ```sh
-uv run --locked skillctl sync --dry-run
+skillctl sync --dry-run
 ```
 
 Apply it after reviewing the reported additions, updates, and removals:
 
 ```sh
-uv run --locked skillctl sync
+skillctl sync
 ```
+
+`skillctl` discovers the checkout from the current directory or its parents,
+then falls back to `~/.agents/skills`. Pass `--root PATH` after either command to
+select a checkout explicitly. An installed binary includes its output templates
+and does not depend on the build directory. Ensure `$(go env GOPATH)/bin` (or
+your configured `GOBIN`) is on `PATH`.
 
 `skillctl` validates the complete manifest before acquisition. It rejects
 unsafe paths, duplicate dependency IDs, duplicate destinations, collisions
@@ -97,7 +107,8 @@ checks upstream; a failed fetch never falls back to stale cached content.
 The ignored `.skillctl.lock` records each dependency's URL, requested ref, and
 exact resolved commit, together with selected Git subtree IDs, dependency
 settings, generator source, and a fingerprint of installed output. If the
-generation inputs and live output still match, generation and replacement are skipped.
+generation inputs and live output still match, generation and replacement are
+skipped.
 Upstream changes outside selected paths do not require regeneration. Sources
 with repository-local symlinks use the full repository tree ID because their
 targets may sit outside the selected paths.
@@ -110,6 +121,8 @@ when inputs changed. Acquisition or validation failure leaves the live tree in
 place; an installation rename failure restores it.
 
 The same `.skillctl.lock` also serializes runs through an operating-system lock.
+The lock JSON, router entry points, and description indexes are rendered from
+embedded Go `text/template` files. JSON values are encoded before insertion.
 Metadata is written in place while that lock is held, preserving the file's
 inode and preventing concurrent runs from bypassing it. An empty, corrupt, or
 interrupted metadata write triggers regeneration on the next run. A shared
@@ -136,8 +149,8 @@ therefore finishes by copying every authored and managed skill flat into
 `~/.claude/skills`. Run the copy on its own after editing an authored skill:
 
 ```sh
-uv run --locked skillctl install-claude --dry-run
-uv run --locked skillctl install-claude
+skillctl install-claude --dry-run
+skillctl install-claude
 ```
 
 Pass `--claude-target` to install somewhere else, or `sync --no-claude` to
@@ -301,15 +314,19 @@ outside an existing sparse checkout.
 
 ## Validate Changes
 
-Use the committed lockfile for all local checks:
+Use the Go module checksums and Python development lockfile for local checks:
 
 ```sh
+go test ./...
+go test -race ./...
+go vet ./...
+go build -o /tmp/skillctl ./cmd/skillctl
 uv sync --locked
 uv run --locked yamllint --strict .
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked skillctl sync --dry-run
+/tmp/skillctl sync --dry-run
 ```
 
 To apply formatting after editing Python:

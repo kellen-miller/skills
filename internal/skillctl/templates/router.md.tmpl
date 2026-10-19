@@ -1,0 +1,14 @@
+---
+name: {{.Router.Name}}
+description: {{json .Router.Description}}
+---
+
+# {{.Router.Name}}
+
+This skill indexes {{len .Entries}} skills. Pick the one that matches the task, read its guide, and follow it exactly as if it had been loaded as a skill. Resolve relative paths in a guide from that guide's directory.
+
+{{if .Indexes}}Read the index containing the relevant guide name below, then choose using its full descriptions. Read only the indexes needed for the task.
+
+{{range .Indexes}}- [Index](indexes/{{.Filename}}): {{join .Names ", "}}
+{{end}}{{else}}{{range .Entries}}- `{{.Name}}` (`skills/{{.Name}}/GUIDE.md`){{if .Summary}}: {{.Summary}}{{end}}
+{{end}}{{end -}}

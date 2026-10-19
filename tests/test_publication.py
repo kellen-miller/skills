@@ -31,6 +31,8 @@ ALLOWED_FILES = {
     "pyproject.toml",
     "renovate.json",
     "uv.lock",
+    "go.mod",
+    "go.sum",
 }
 ALLOWED_PREFIXES = (
     ".github/workflows/",
@@ -39,7 +41,8 @@ ALLOWED_PREFIXES = (
     "frontend-design/",
     "grill-plan-build/",
     "dispatch-tickets/",
-    "src/skillctl/",
+    "cmd/skillctl/",
+    "internal/skillctl/",
     "tests/",
 )
 
@@ -99,12 +102,16 @@ class PublicationPolicyTest(unittest.TestCase):
                     r"^https://github\.com/[^/]+/[^/]+\.git$",
                 )
 
-    def test_project_exposes_locked_skillctl_and_ruff(self):
+    def test_project_exposes_go_skillctl_and_python_dev_tools(self):
         project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
 
         self.assertIn('requires-python = ">=3.11"', project)
-        self.assertIn('skillctl = "skillctl.cli:main"', project)
+        self.assertNotIn("[project.scripts]", project)
+        self.assertTrue((ROOT / "cmd/skillctl/main.go").is_file())
+        self.assertIn(
+            "module github.com/kellen-miller/skills", (ROOT / "go.mod").read_text()
+        )
         self.assertIn('target-version = "py311"', project)
         self.assertIn('select = ["E4", "E7", "E9", "F", "I"]', project)
         self.assertIn('name = "ruff"', lock)

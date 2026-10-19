@@ -1,19 +1,12 @@
 [project]
-name = "skillctl"
+name = "skills-dev"
 version = "0.1.0"
-description = "Materialize manifest-managed agent skills"
+description = "Development tools for authored agent skills"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "PyYAML>=6.0,<7",
 ]
-
-[project.scripts]
-skillctl = "skillctl.cli:main"
-
-[build-system]
-requires = ["uv_build>=0.12.23,<0.13.0"]
-build-backend = "uv_build"
 
 [tool.ruff]
 target-version = "py311"

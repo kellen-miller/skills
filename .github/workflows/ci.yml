@@ -17,6 +17,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.12.23"
@@ -39,11 +43,16 @@ jobs:
       - name: Test and regenerate anonymously
         shell: bash
         run: |
+          test -z "$(gofmt -l cmd internal)"
+          go mod tidy -diff
+          go vet ./...
+          go test -race ./...
+          go build -o /tmp/skillctl ./cmd/skillctl
           uv sync --locked
           uv run --locked yamllint --strict .
           uv run --locked ruff check .
           uv run --locked ruff format --check .
           uv run --locked python -m unittest discover -s tests -v
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
-            GIT_TERMINAL_PROMPT=0 uv run --locked skillctl sync --no-claude
+            GIT_TERMINAL_PROMPT=0 /tmp/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
