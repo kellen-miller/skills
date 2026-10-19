@@ -94,9 +94,10 @@ are too, and runtimes that index by `name` see no collisions.
 up to four dependencies concurrently, reusing downloaded Git objects. Every run
 checks upstream; a failed fetch never falls back to stale cached content.
 
-The ignored `.skillctl-state.json` records selected Git subtree IDs, dependency
-settings, generator source, and a fingerprint of installed output. If those
-inputs and the live output still match, generation and replacement are skipped.
+The ignored `.skillctl.lock` records each dependency's URL, requested ref, and
+exact resolved commit, together with selected Git subtree IDs, dependency
+settings, generator source, and a fingerprint of installed output. If the
+generation inputs and live output still match, generation and replacement are skipped.
 Upstream changes outside selected paths do not require regeneration. Sources
 with repository-local symlinks use the full repository tree ID because their
 targets may sit outside the selected paths.
@@ -108,14 +109,23 @@ changes therefore remove obsolete output. Identical output stays in place even
 when inputs changed. Acquisition or validation failure leaves the live tree in
 place; an installation rename failure restores it.
 
-The ignored `.skillctl.lock` serializes runs. A shared cache lock also prevents
-different checkouts from modifying cached repositories during staging. A
-concurrent run fails immediately rather than interleaving changes.
+The same `.skillctl.lock` also serializes runs through an operating-system lock.
+Metadata is written in place while that lock is held, preserving the file's
+inode and preventing concurrent runs from bypassing it. An empty, corrupt, or
+interrupted metadata write triggers regeneration on the next run. A shared
+cache lock also prevents different checkouts from modifying cached repositories
+during staging. A concurrent run fails immediately rather than interleaving changes.
 
-Dry runs may refresh the Git cache but leave installed output and synchronization
-state unchanged. Deleting the cache or state is safe; the next sync downloads or
-regenerates what it needs. Cache entries are keyed by dependency ID, URL, ref,
-and sparse paths; entries for old configurations can be removed by deleting
+`sync` checks upstream and refreshes the recorded resolutions on every successful
+run, including when changes outside selected paths leave installed output
+unchanged. Use a manifest `ref` to pin a dependency. The lockfile remains local
+because it includes machine-local dependencies and installation state.
+
+Dry runs may refresh the Git cache but leave installed output and existing
+lockfile contents unchanged. Between runs, deleting the cache or lockfile is
+safe; the next sync downloads or regenerates what it needs. Do not delete the
+lockfile during a run. Cache entries are keyed by dependency ID, URL, ref, and
+sparse paths; entries for old configurations can be removed by deleting
 `~/.cache/skillctl/` (or its configured equivalent).
 
 ## Install for Claude Code

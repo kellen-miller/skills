@@ -1,9 +1,11 @@
 import fcntl
 import importlib.util
 import io
+import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -579,7 +581,7 @@ class MaterializationTest(unittest.TestCase):
         self.materialize()
         installed = self.root / "_managed/alpha/SKILL.md"
         before = installed.stat().st_ino
-        (self.root / ".skillctl-state.json").write_text("broken")
+        (self.root / ".skillctl.lock").write_text("broken")
         self.materialize()
         self.assertEqual(installed.stat().st_ino, before)
 
@@ -602,26 +604,106 @@ class MaterializationTest(unittest.TestCase):
         (self.root / "deps.yaml").write_text("version: 1\ndependencies: []\n")
         self.materialize()
         self.assertEqual(list((self.root / "_managed").iterdir()), [])
+        lock = json.loads((self.root / ".skillctl.lock").read_text())
+        self.assertEqual(lock["dependencies"], [])
 
     def test_warm_fetch_failure_does_not_use_stale_cache(self):
         self.materialize()
         installed = self.root / "_managed/alpha/SKILL.md"
         before = installed.stat().st_ino
+        lock_before = (self.root / ".skillctl.lock").read_bytes()
         self.source.rename(self.source.with_name("offline"))
         with self.assertRaises(subprocess.CalledProcessError):
             self.materialize()
 
         self.assertEqual(installed.stat().st_ino, before)
+        self.assertEqual((self.root / ".skillctl.lock").read_bytes(), lock_before)
 
     def test_dry_run_does_not_advance_state(self):
         self.materialize()
-        state = self.root / ".skillctl-state.json"
+        state = self.root / ".skillctl.lock"
         before = state.read_bytes()
         (self.source / "skills/alpha/SKILL.md").write_text("Updated skill")
         self.commit_source()
         self.assertIn("UPDATE alpha", self.materialize(dry_run=True))
         self.assertEqual(state.read_bytes(), before)
         self.assertIn("UPDATE alpha", self.materialize())
+
+    def test_lock_records_resolved_dependency_and_generation_state(self):
+        self.materialize()
+        lock_path = self.root / ".skillctl.lock"
+        lock = json.loads(lock_path.read_text())
+        expected_commit = subprocess.check_output(
+            ["git", "-C", self.source, "rev-parse", "HEAD"], text=True
+        ).strip()
+        self.assertEqual(lock["version"], 1)
+        self.assertEqual(lock["dependencies"][0]["id"], "example")
+        self.assertEqual(lock["dependencies"][0]["commit"], expected_commit)
+        self.assertEqual(lock["dependencies"][0]["ref"], "HEAD")
+        self.assertEqual(
+            lock["state"]["output"],
+            self.module.tree_fingerprint(self.root / "_managed"),
+        )
+        self.assertFalse((self.root / ".skillctl-state.json").exists())
+
+    def test_unselected_change_updates_lock_without_replacing_output(self):
+        self.materialize()
+        lock_path = self.root / ".skillctl.lock"
+        before = json.loads(lock_path.read_text())
+        inode = lock_path.stat().st_ino
+        (self.source / "README.md").write_text("Unrelated change")
+        self.commit_source()
+        with mock.patch.object(
+            self.module.shutil, "copytree", wraps=self.module.shutil.copytree
+        ) as copy:
+            self.materialize()
+
+        after = json.loads(lock_path.read_text())
+        self.assertNotEqual(before["dependencies"], after["dependencies"])
+        self.assertEqual(before["state"], after["state"])
+        self.assertEqual(lock_path.stat().st_ino, inode)
+        copy.assert_not_called()
+
+    def test_claude_install_preserves_dependency_lock_contents(self):
+        self.materialize()
+        lock_path = self.root / ".skillctl.lock"
+        before = lock_path.read_bytes()
+        with redirect_stdout(io.StringIO()):
+            self.module.install_claude(
+                self.root, [], set(), self.root.parent / "claude", dry_run=False
+            )
+
+        self.assertEqual(lock_path.read_bytes(), before)
+
+    def test_lock_write_keeps_second_process_excluded(self):
+        self.materialize()
+        lock_path = self.root / ".skillctl.lock"
+        inode = lock_path.stat().st_ino
+        with self.module.sync_lock(self.root) as lock_file:
+            self.module.write_sync_lock(lock_file, [], {"output": "checked"})
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import fcntl, sys; "
+                    "f = open(sys.argv[1], 'r+'); "
+                    "fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)",
+                    str(lock_path),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("BlockingIOError", result.stderr)
+            self.assertEqual(lock_path.stat().st_ino, inode)
+
+        with self.module.sync_lock(self.root):
+            pass
+
+        self.assertEqual(
+            json.loads(lock_path.read_text())["state"], {"output": "checked"}
+        )
 
     def test_selected_file_deletion_removes_installed_file(self):
         extra = self.source / "skills/alpha/obsolete.md"
@@ -905,10 +987,14 @@ class MaterializationTest(unittest.TestCase):
 
     def test_lock_contention_fails_without_staging_or_mutation(self):
         lock_path = self.root / ".skillctl.lock"
+        contents = '{"version": 1, "sentinel": "keep"}'
+        lock_path.write_text(contents)
         with lock_path.open("a+") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             with self.assertRaisesRegex(RuntimeError, "^another sync is in progress$"):
                 self.module.materialize(self.root, [], set(), dry_run=False)
+
+        self.assertEqual(lock_path.read_text(), contents)
         self.assertFalse((self.root / "_managed").exists())
         self.assertEqual(
             list(self.root.parent.glob(".skills-sync-*")),

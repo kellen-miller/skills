@@ -490,16 +490,31 @@ def acquire_dependency(dependency, cache_root):
 @contextlib.contextmanager
 def sync_lock(repo_root):
     lock_path = repo_root / ".skillctl.lock"
-    with lock_path.open("a+") as lock_file:
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    with os.fdopen(descriptor, "r+", encoding="utf-8") as lock_file:
         try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise RuntimeError("another sync is in progress") from error
 
         try:
-            yield
+            yield lock_file
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def write_sync_lock(lock_file, dependencies, state):
+    """Update metadata in place: replacing the inode would bypass flock."""
+    lock_file.seek(0)
+    json.dump(
+        {"version": 1, "dependencies": dependencies, "state": state},
+        lock_file,
+        indent=2,
+    )
+    lock_file.write("\n")
+    lock_file.truncate()
+    lock_file.flush()
+    os.fsync(lock_file.fileno())
 
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)^---[ \t]*$", re.S | re.M)
@@ -592,7 +607,15 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
     cache_root = git_cache_root()
     cache_root.mkdir(parents=True, exist_ok=True)
     # Shared checkouts stay locked through staging, including across worktrees.
-    with sync_lock(repo_root), sync_lock(cache_root):
+    with sync_lock(repo_root) as lock_file, sync_lock(cache_root):
+        try:
+            previous_lock = json.load(lock_file)
+        except (ValueError, UnicodeError):
+            previous_lock = None
+
+        if not isinstance(previous_lock, dict) or previous_lock.get("version") != 1:
+            previous_lock = {}
+
         with ThreadPoolExecutor(max_workers=4) as executor:
             clones = list(
                 executor.map(
@@ -608,6 +631,7 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
             selected = []
             routers = []
             destinations = set()
+            resolved_dependencies = []
             inputs = {
                 "generator": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 "durable_roots": sorted(durable_roots),
@@ -695,34 +719,39 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                 ):
                     paths = ["."]
 
-                trees = (
-                    run_git(
-                        [
-                            "rev-parse",
-                            *[
-                                "HEAD^{tree}" if p == "." else f"HEAD:{p}"
-                                for p in paths
-                            ],
-                        ],
-                        cwd=clone,
-                    ).splitlines()
-                    if paths
-                    else []
+                revisions = run_git(
+                    [
+                        "rev-parse",
+                        "HEAD",
+                        *["HEAD^{tree}" if p == "." else f"HEAD:{p}" for p in paths],
+                    ],
+                    cwd=clone,
+                ).splitlines()
+                inputs["dependencies"].append(
+                    {"config": dependency, "trees": revisions[1:]}
                 )
-                inputs["dependencies"].append({"config": dependency, "trees": trees})
+                resolved_dependencies.append(
+                    {
+                        "id": dependency["id"],
+                        "url": dependency["url"],
+                        "ref": dependency["ref"] or "HEAD",
+                        "commit": revisions[0],
+                    }
+                )
 
             current = repo_root / "_managed"
-            state_path = repo_root / ".skillctl-state.json"
-            try:
-                previous = json.loads(state_path.read_text(encoding="utf-8"))
-            except (FileNotFoundError, ValueError):
-                previous = None
-
             live_fingerprint = tree_fingerprint(current)
-            if live_fingerprint is not None and previous == {
+            state = {
                 "inputs": inputs,
                 "output": live_fingerprint,
-            }:
+            }
+            if live_fingerprint is not None and previous_lock.get("state") == state:
+                if (
+                    not dry_run
+                    and previous_lock.get("dependencies") != resolved_dependencies
+                ):
+                    write_sync_lock(lock_file, resolved_dependencies, state)
+
                 action = "Would install" if dry_run else "Installed"
                 print(f"{action} {len(destinations)} managed skills (unchanged)")
                 return
@@ -796,12 +825,11 @@ def materialize(repo_root, dependencies, durable_roots, *, dry_run):
                     shutil.rmtree(backup)
 
             if not dry_run:
-                state_temporary = state_path.with_suffix(".json.tmp")
-                state_temporary.write_text(
-                    json.dumps({"inputs": inputs, "output": staged_fingerprint}),
-                    encoding="utf-8",
+                write_sync_lock(
+                    lock_file,
+                    resolved_dependencies,
+                    {"inputs": inputs, "output": staged_fingerprint},
                 )
-                state_temporary.replace(state_path)
                 print(f"Installed {len(new_names)} managed skills")
             else:
                 print(f"Would install {len(new_names)} managed skills")
