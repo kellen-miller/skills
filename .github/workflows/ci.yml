@@ -33,8 +33,7 @@ jobs:
             exit "$status"
           fi
       - name: Check Rust workspace
-        # ci PR #20; immutable proposed action until merged.
-        uses: kellen-miller/ci/.github/actions/rust-check@2b1fc36b3e296f9e279507f63eae9dc04df11d91
+        uses: kellen-miller/ci/.github/actions/rust-check@0ee482cdd0ea61bc8b5d95cc8b45195fc0df0d66 # main
       - name: Regenerate anonymously
         shell: bash
         run: |
@@ -48,6 +47,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@2b1fc36b3e296f9e279507f63eae9dc04df11d91
+        uses: kellen-miller/ci/.github/actions/code-duplication@0ee482cdd0ea61bc8b5d95cc8b45195fc0df0d66 # main
         with:
+          # renovate: datasource=crate depName=jscpd versioning=semver
           version: '5.4.1'

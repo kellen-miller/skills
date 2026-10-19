@@ -26,7 +26,7 @@ isolated worktrees, retaining validation and recovery evidence.
 
 - macOS or Linux (uses POSIX file locks)
 - Git
-- Rust 1.89 or newer and Cargo (the committed toolchain selects stable)
+- Rust and Cargo (minimum version in `Cargo.toml`; the committed toolchain selects stable)
 - Network access to the Git repositories declared in `deps.yaml` and any
   machine-local overlay
 
