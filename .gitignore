@@ -1,4 +1,5 @@
 _managed/
+/target/
 ._managed.backup.*/
 .skillctl.lock
 # Ignore legacy state files; new runs store state in .skillctl.lock.

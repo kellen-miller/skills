@@ -26,9 +26,7 @@ isolated worktrees, retaining validation and recovery evidence.
 
 - macOS or Linux (uses POSIX file locks)
 - Git
-- Go 1.25 or newer
-- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/) for development checks
-  and Python-based authored skill scripts
+- Rust 1.89 or newer and Cargo (the committed toolchain selects stable)
 - Network access to the Git repositories declared in `deps.yaml` and any
   machine-local overlay
 
@@ -42,7 +40,7 @@ git clone https://github.com/kellen-miller/skills.git \
   ~/development/github/kellen-miller/skills
 ln -s ~/development/github/kellen-miller/skills ~/.agents/skills
 cd ~/.agents/skills
-go install ./cmd/skillctl
+cargo install --path . --locked
 skillctl sync
 ```
 
@@ -58,12 +56,11 @@ configuration have been preserved.
 | `_managed/` | Generated | External skills materialized from the dependency manifests |
 | `deps.yaml` | Authored | Public, reproducible external dependency declarations |
 | `deps.local.yaml` | Machine-local | Ignored additions, extensions, and removals for one machine |
-| `cmd/skillctl/` | Authored | Go command entry point |
-| `internal/skillctl/` | Authored | Manifest validation, synchronization, and embedded templates |
-| `go.mod`, `go.sum` | Authored/generated | Go module and verified dependency checksums |
+| `src/` | Authored | Rust skill synchronization, dispatcher, and command entry points |
+| `templates/` | Authored | Embedded lock JSON and router/index Markdown templates |
+| `Cargo.toml`, `Cargo.lock` | Authored/generated | Rust package and locked dependencies |
 | `tests/` | Authored | Publication and authored skill regression coverage |
-| `pyproject.toml` | Authored | Python development tools for other authored skills |
-| `uv.lock` | Generated and tracked | Reproducible Python dependency lockfile |
+| `.jscpd.json` | Authored | Duplication policy for Rust source and tests |
 
 Never edit `_managed/` directly. It is disposable output owned by `skillctl`;
 the next successful synchronization repairs any local changes. Change `deps.yaml`,
@@ -85,9 +82,9 @@ skillctl sync
 
 `skillctl` discovers the checkout from the current directory or its parents,
 then falls back to `~/.agents/skills`. Pass `--root PATH` after either command to
-select a checkout explicitly. An installed binary includes its output templates
-and does not depend on the build directory. Ensure `$(go env GOPATH)/bin` (or
-your configured `GOBIN`) is on `PATH`.
+select a checkout explicitly. Installed binaries include their output templates
+and do not depend on the build directory. Ensure Cargo's installation directory
+(usually `~/.cargo/bin`) is on `PATH`. The same install supplies `dispatch-tickets`.
 
 `skillctl` validates the complete manifest before acquisition. It rejects
 unsafe paths, duplicate dependency IDs, duplicate destinations, collisions
@@ -122,7 +119,7 @@ place; an installation rename failure restores it.
 
 The same `.skillctl.lock` also serializes runs through an operating-system lock.
 The lock JSON, router entry points, and description indexes are rendered from
-embedded Go `text/template` files. JSON values are encoded before insertion.
+embedded MiniJinja templates. JSON values are encoded with Serde before insertion.
 Metadata is written in place while that lock is held, preserving the file's
 inode and preventing concurrent runs from bypassing it. An empty, corrupt, or
 interrupted metadata write triggers regeneration on the next run. A shared
@@ -314,26 +311,23 @@ outside an existing sparse checkout.
 
 ## Validate Changes
 
-Use the Go module checksums and Python development lockfile for local checks:
+Use the committed Cargo lockfile for local checks:
 
 ```sh
-go test ./...
-go test -race ./...
-go vet ./...
-go build -o /tmp/skillctl ./cmd/skillctl
-uv sync --locked
-uv run --locked yamllint --strict .
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked python -m unittest discover -s tests -v
-/tmp/skillctl sync --dry-run
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+cargo test --locked --workspace --all-targets --all-features
+cargo test --locked --workspace --doc
+cargo build --locked --workspace --all-targets --all-features
+cpd --config .jscpd.json --no-tips --no-colors
+./target/debug/skillctl sync --dry-run
 ```
 
-To apply formatting after editing Python:
-
-```sh
-uv run --locked ruff format .
-```
+Install the Rust duplication tool with `cargo install jscpd --version 5.4.1 --locked`.
+CI uses the shared `rust-check` and `code-duplication` actions pinned to the
+reviewed commit from [CI PR #20](https://github.com/kellen-miller/ci/pull/20).
+All maintained executable code and tests in this repository use Rust; downloaded
+upstream skill content retains its original implementation languages.
 
 The publication tests ensure that only reviewed public source is tracked.
 Generated dependencies, machine-local manifests, lock files, caches, private

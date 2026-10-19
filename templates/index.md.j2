@@ -1,0 +1,4 @@
+# {{ router.name }}: {{ first }} – {{ last }}
+
+{% for entry in entries %}- `{{ entry.name }}` (`../skills/{{ entry.name }}/GUIDE.md`){% if entry.summary %}: {{ entry.summary }}{% endif %}
+{% endfor -%}

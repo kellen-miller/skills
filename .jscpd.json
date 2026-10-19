@@ -1,0 +1,9 @@
+{
+  "path": ["src", "tests"],
+  "format": ["rust"],
+  "threshold": 3,
+  "minLines": 8,
+  "minTokens": 70,
+  "reporters": ["console"],
+  "ignore": ["**/target/**", "**/_managed/**", "**/.agent/**", "**/.worktrees/**"]
+}

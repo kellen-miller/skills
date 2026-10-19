@@ -2,14 +2,14 @@
 name: dispatch-tickets
 description: >-
   Run an approved implementation task graph through a deterministic local
-  script, using fresh CLI workers in isolated Git worktrees. Use for repeated
+  Rust dispatcher, using fresh CLI workers in isolated Git worktrees. Use for repeated
   ticket distribution, parallel execution, and evidence-backed resume across
   coding-agent providers.
 ---
 
 # Dispatch Tickets
 
-Use the script for scheduling, process lifecycle, validation, local commits,
+Use the dispatcher for scheduling, process lifecycle, validation, local commits,
 serial integration, and durable state. Agents own design, bounded coding,
 failure diagnosis, independent review, and acceptance. Scheduling requires no
 model calls. Each implementation ticket gets a fresh CLI process and worktree.
@@ -46,32 +46,33 @@ executes these commands; it does not choose or verify model capability.
 
 ## Preview And Execute
 
-Resolve the script relative to this skill:
+Install the Rust dispatcher from the skills checkout if needed, then invoke it:
 
 ```sh
-python3 scripts/dispatch.py --repo <integration-worktree> \
+cargo install --path ~/.agents/skills --locked
+dispatch-tickets --repo <integration-worktree> \
   --graph <work-item>/tickets.json status
-python3 scripts/dispatch.py --repo <integration-worktree> \
+dispatch-tickets --repo <integration-worktree> \
   --graph <work-item>/tickets.json run --jobs 3
 ```
 
 `status` validates and previews without mutations or model calls. `run` starts
 local coding-agent processes and performs Git writes. A request to execute the
 approved implementation covers those local actions; preview-only requests do
-not. The script does not push, publish a PR, write to issue trackers, deploy,
+not. The dispatcher does not push, publish a PR, write to issue trackers, deploy,
 or conduct the final independent review.
 
 Monitor the foreground process through the runtime's resumable execution tools;
 keep user updates concise. In Claude Code, start `run` with Bash
 `run_in_background` (foreground calls cap at 10 minutes, below the worker
 timeout) and wait for its exit notification; read `dispatch/state.json` and
-attempt logs meanwhile. The script launches only tickets whose prerequisites
+attempt logs meanwhile. The dispatcher launches only tickets whose prerequisites
 have passed integrated checks, fills available capacity, and serializes tickets
 with overlapping owned paths. It integrates completed results one at a time and
 runs the graph's integration checks before releasing dependent tasks.
 
 Workers receive only their own brief plus workspace/ownership constraints.
-They edit and may validate their assignment, but the script owns commits and
+They edit and may validate their assignment, but the dispatcher owns commits and
 merges. Retain the resulting logs, exact starting commits, worker commands,
 result commits, merge commits, and check outcomes as execution evidence. A zero
 worker exit code alone does not establish acceptance.

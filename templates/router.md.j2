@@ -1,0 +1,14 @@
+---
+name: {{ router.name }}
+description: {{ router.description | json }}
+---
+
+# {{ router.name }}
+
+This skill indexes {{ entries | length }} skills. Pick the one that matches the task, read its guide, and follow it exactly as if it had been loaded as a skill. Resolve relative paths in a guide from that guide's directory.
+
+{% if indexes %}Read the index containing the relevant guide name below, then choose using its full descriptions. Read only the indexes needed for the task.
+
+{% for index in indexes %}- [Index](indexes/{{ index.filename }}): {{ index.names | join(", ") }}
+{% endfor %}{% else %}{% for entry in entries %}- `{{ entry.name }}` (`skills/{{ entry.name }}/GUIDE.md`){% if entry.summary %}: {{ entry.summary }}{% endif %}
+{% endfor %}{% endif -%}

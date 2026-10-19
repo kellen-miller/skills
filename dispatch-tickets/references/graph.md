@@ -1,7 +1,8 @@
 # Ticket graph and CLI protocol
 
-Python 3.11+, Git, `ps`, and POSIX process groups/file locks are required. No provider
-SDK is required. This script is intended for macOS/Linux. Its checks and owned
+Install `dispatch-tickets` with `cargo install --path ~/.agents/skills --locked`.
+Git, `ps`, and POSIX process groups/file locks are required on macOS/Linux. No
+provider SDK is required. Its checks and owned
 paths validate results; they are not an operating-system security boundary.
 Configure each worker CLI's own permissions for the repository.
 
@@ -16,7 +17,7 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
   "base_ref": "refs/remotes/origin/main",
   "integration_branch": "refs/heads/feat/example",
   "worker_command": ["codex", "exec", "--model", "<selected-implementation-model>", "--sandbox", "workspace-write", "-"],
-  "integration_checks": [["uv", "run", "--locked", "python", "-m", "unittest", "discover", "-s", "tests"]],
+  "integration_checks": [["cargo", "test", "--locked"]],
   "tickets": [
     {
       "id": "export",
@@ -24,8 +25,8 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
       "commit_message": "feat: add JSON export",
       "brief": "tasks/export.md",
       "depends_on": [],
-      "owned_paths": ["src/export", "tests/test_export.py"],
-      "checks": [["uv", "run", "--locked", "python", "-m", "unittest", "tests.test_export"]]
+      "owned_paths": ["src/export", "tests/export.rs"],
+      "checks": [["cargo", "test", "--locked", "--test", "export"]]
     },
     {
       "id": "cli",
@@ -33,9 +34,9 @@ Save `tickets.json` and briefs under Git-ignored `.agent/work/<slug>/`:
       "commit_message": "feat: expose export in the CLI",
       "brief": "tasks/cli.md",
       "depends_on": ["export"],
-      "owned_paths": ["src/cli.py", "tests/test_cli.py"],
-      "worker_command": ["claude", "-p", "--model", "<selected-provider-implementation-model>", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(uv run --locked python -m unittest:*)", "--disallowedTools", "Agent", "--output-format", "stream-json", "--verbose"],
-      "checks": [["uv", "run", "--locked", "python", "-m", "unittest", "tests.test_cli"]]
+      "owned_paths": ["src/cli.rs", "tests/cli.rs"],
+      "worker_command": ["claude", "-p", "--model", "<selected-provider-implementation-model>", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(cargo test:*)", "--disallowedTools", "Agent", "--output-format", "stream-json", "--verbose"],
+      "checks": [["cargo", "test", "--locked", "--test", "cli"]]
     }
   ]
 }
@@ -59,11 +60,11 @@ the worker silently skips its own validation; allowlist each check command with
 `Agent` so workers do not fan out. `stream-json --verbose` makes the attempt log
 show model, tool calls and `permission_denials`. `--effort` sets reasoning.
 
-Check and test runs must not leave untracked artifacts (`__pycache__`, build
+Check and test runs must not leave untracked artifacts (`target/`, build
 output) that the repository does not ignore; they count as unowned changes.
 
 `base_ref` must be an explicit Git ref whose commit is an ancestor of integration
-HEAD. The script records each worker's exact integration starting commit,
+HEAD. The dispatcher records each worker's exact integration starting commit,
 including integrated prerequisites, rather than starting from remote main.
 `integration_branch` is the full local branch ref and must be currently checked
 out. Ticket IDs are unique lowercase slugs, at most 32 characters. Dependencies
@@ -101,7 +102,7 @@ commands without publication/deployment side effects.
 State is saved atomically under `dispatch/state.json`, with logs alongside it.
 The lifecycle is pending → running → validated → merging → checking → integrated;
 failures become blocked. Commands, exit codes, exact commits, paths, and prior
-attempts are retained. The script stops the run on a failure and preserves the
+attempts are retained. The dispatcher stops the run on a failure and preserves the
 integration branch, including any merge whose checks failed. Nothing is pushed
 or cleaned up automatically. Keep `.agent/work/` ignored in worker worktrees too.
 

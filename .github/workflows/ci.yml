@@ -11,48 +11,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: go.mod
-          check-latest: true
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          version: "0.12.23"
-          enable-cache: true
       - name: Prove GitHub credentials are absent
         shell: bash
         run: |
           status=0
           git config --show-origin --get-regexp '^http\..*\.extraheader$' \
             >"$RUNNER_TEMP/git-extraheaders.txt" || status=$?
-          if [ "$status" -eq 0 ]; then
+          if [[ "$status" -eq 0 ]]; then
             cat "$RUNNER_TEMP/git-extraheaders.txt"
             echo "Git HTTP extraheader remains configured" >&2
             exit 1
           fi
-          if [ "$status" -ne 1 ]; then
+          if [[ "$status" -ne 1 ]]; then
             echo "Unable to audit Git HTTP extraheaders" >&2
             exit "$status"
           fi
-      - name: Test and regenerate anonymously
+      - name: Check Rust workspace
+        # ci PR #20; immutable proposed action until merged.
+        uses: kellen-miller/ci/.github/actions/rust-check@2b1fc36b3e296f9e279507f63eae9dc04df11d91
+      - name: Regenerate anonymously
         shell: bash
         run: |
-          test -z "$(gofmt -l cmd internal)"
-          go mod tidy -diff
-          go vet ./...
-          go test -race ./...
-          go build -o /tmp/skillctl ./cmd/skillctl
-          uv sync --locked
-          uv run --locked yamllint --strict .
-          uv run --locked ruff check .
-          uv run --locked ruff format --check .
-          uv run --locked python -m unittest discover -s tests -v
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
-            GIT_TERMINAL_PROMPT=0 /tmp/skillctl sync --no-claude
+            GIT_TERMINAL_PROMPT=0 ./target/debug/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
+  duplication:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check Rust duplication
+        uses: kellen-miller/ci/.github/actions/code-duplication@2b1fc36b3e296f9e279507f63eae9dc04df11d91
+        with:
+          version: '5.4.1'
