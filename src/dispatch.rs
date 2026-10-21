@@ -106,7 +106,10 @@ fn git_text(repo: &Path, args: &[&str]) -> Result<String> {
 }
 
 fn commit(repo: &Path, reference: &str) -> Result<String> {
-    git_text(repo, &["rev-parse", "--verify", &format!("{reference}^{{commit}}")])
+    git_text(
+        repo,
+        &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
+    )
 }
 
 fn ancestor(repo: &Path, earlier: &str, later: &str) -> Result<bool> {
@@ -271,14 +274,16 @@ fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
         "integration HEAD does not descend from base_ref"
     );
     let worker = command(&raw["worker_command"])?;
-    let integration_checks = checks(&raw["integration_checks"]).context("graph requires integration_checks")?;
+    let integration_checks =
+        checks(&raw["integration_checks"]).context("graph requires integration_checks")?;
     let entries = raw["tickets"]
         .as_array()
         .context("graph requires nonempty tickets")?;
     ensure!(!entries.is_empty(), "graph requires nonempty tickets");
     let slug = Regex::new(r"^[a-z0-9][a-z0-9-]{0,31}$")?;
-    let subject =
-        Regex::new(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: [^\r\n]+$")?;
+    let subject = Regex::new(
+        r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: [^\r\n]+$",
+    )?;
     let mut tickets = BTreeMap::new();
     let mut inputs = Vec::new();
     for entry in entries {
@@ -320,10 +325,14 @@ fn parse_ticket(
         slug.is_match(id),
         "ticket IDs must be unique lowercase slugs, at most 32 chars"
     );
-    let deliverable = text(&entry["deliverable"]).with_context(|| format!("{id} requires a deliverable"))?;
-    ensure!(!deliverable.trim().is_empty(), "{id} requires a deliverable");
-    let dependencies =
-        strings(&entry["depends_on"]).with_context(|| format!("{id} requires depends_on as an ID list"))?;
+    let deliverable =
+        text(&entry["deliverable"]).with_context(|| format!("{id} requires a deliverable"))?;
+    ensure!(
+        !deliverable.trim().is_empty(),
+        "{id} requires a deliverable"
+    );
+    let dependencies = strings(&entry["depends_on"])
+        .with_context(|| format!("{id} requires depends_on as an ID list"))?;
     ensure!(
         dependencies.iter().collect::<BTreeSet<_>>().len() == dependencies.len(),
         "{id} has duplicate dependencies"
@@ -400,7 +409,8 @@ fn validate_ticket_graph(tickets: &BTreeMap<String, Ticket>) -> Result<()> {
 }
 
 fn save_state(path: &Path, state: &State) -> Result<()> {
-    let mut temporary = tempfile::NamedTempFile::new_in(path.parent().context("state has no parent")?)?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(path.parent().context("state has no parent")?)?;
     serde_json::to_writer_pretty(&mut temporary, state)?;
     temporary.write_all(b"\n")?;
     temporary.as_file().sync_all()?;
@@ -435,7 +445,15 @@ fn load_state(path: &Path, graph: &Graph, head: String) -> Result<State> {
     ensure!(
         state.tasks.values().all(|t| matches!(
             t["status"].as_str(),
-            Some("pending" | "running" | "validated" | "merging" | "checking" | "integrated" | "blocked")
+            Some(
+                "pending"
+                    | "running"
+                    | "validated"
+                    | "merging"
+                    | "checking"
+                    | "integrated"
+                    | "blocked"
+            )
         ) && t["history"].is_array()),
         "invalid task status or history"
     );
@@ -514,7 +532,12 @@ fn stop_process(child: &mut Child) -> Result<()> {
     Ok(())
 }
 
-fn watch_worker(child: &Mutex<Child>, cancelled: &AtomicBool, expired: &AtomicBool, timeout: Duration) -> Result<()> {
+fn watch_worker(
+    child: &Mutex<Child>,
+    cancelled: &AtomicBool,
+    expired: &AtomicBool,
+    timeout: Duration,
+) -> Result<()> {
     let deadline = Instant::now() + timeout;
     loop {
         if cancelled.load(Ordering::SeqCst) {
@@ -565,8 +588,12 @@ impl Worker {
         let cancelled = Arc::new(AtomicBool::new(false));
         let expired = Arc::new(AtomicBool::new(false));
         let watch_error = Arc::new(Mutex::new(None));
-        let (watch_child, watch_cancelled, watch_expired, watch_failure) =
-            (child.clone(), cancelled.clone(), expired.clone(), watch_error.clone());
+        let (watch_child, watch_cancelled, watch_expired, watch_failure) = (
+            child.clone(),
+            cancelled.clone(),
+            expired.clone(),
+            watch_error.clone(),
+        );
         let timer = thread::spawn(move || {
             let result = watch_worker(&watch_child, &watch_cancelled, &watch_expired, timeout);
             if let Err(error) = result
@@ -660,8 +687,14 @@ fn verify_worker(repo: &Path, ticket: &Ticket, item: &Value) -> Result<(PathBuf,
         commit(&worker, "HEAD")? == text(&item["starting_commit"])?,
         "worker committed or changed HEAD; dispatcher owns Git transfer"
     );
-    let mut changed = git(&worker, &["diff", "HEAD", "--name-only", "--no-renames", "-z"])?;
-    changed.extend(git(&worker, &["ls-files", "--others", "--exclude-standard", "-z"])?);
+    let mut changed = git(
+        &worker,
+        &["diff", "HEAD", "--name-only", "--no-renames", "-z"],
+    )?;
+    changed.extend(git(
+        &worker,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    )?);
     let paths: BTreeSet<_> = String::from_utf8(changed)?
         .split('\0')
         .filter(|p| !p.is_empty())
@@ -684,14 +717,22 @@ fn verify_worker(repo: &Path, ticket: &Ticket, item: &Value) -> Result<(PathBuf,
     Ok((worker, paths.into_iter().collect()))
 }
 
-fn run_checks(commands: &[Vec<String>], cwd: &Path, log_path: &Path, timeout: Duration) -> Result<Value> {
+fn run_checks(
+    commands: &[Vec<String>],
+    cwd: &Path,
+    log_path: &Path,
+    timeout: Duration,
+) -> Result<Value> {
     let mut proof = Vec::new();
     let mut log = OpenOptions::new()
         .create(true)
         .append(true)
         .open(log_path)?;
     for argv in commands {
-        ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
+        ensure!(
+            !interruption().load(Ordering::SeqCst),
+            "received interruption signal"
+        );
         writeln!(log, "\nCHECK {}", serde_json::to_string(argv)?)?;
         log.flush()?;
         let mut child = Command::new(&argv[0])
@@ -721,8 +762,16 @@ fn run_checks(commands: &[Vec<String>], cwd: &Path, log_path: &Path, timeout: Du
         let settled = settle_children(&mut child)?;
         let code = status.code().unwrap_or(-1);
         proof.push(json!({"command":argv,"exit_code":code,"log":log_path}));
-        ensure!(status.success(), "check failed ({code}); see {}", log_path.display());
-        ensure!(settled, "check left live child processes; see {}", log_path.display());
+        ensure!(
+            status.success(),
+            "check failed ({code}); see {}",
+            log_path.display()
+        );
+        ensure!(
+            settled,
+            "check left live child processes; see {}",
+            log_path.display()
+        );
     }
 
     Ok(json!(proof))
@@ -734,7 +783,14 @@ fn merge_matches(repo: &Path, item: &Value) -> Result<bool> {
     Ok(parents == [text(&item["merge_base"])?, text(&item["result_commit"])?])
 }
 
-fn integrate(repo: &Path, graph: &Graph, id: &str, state: &mut State, path: &Path, timeout: Duration) -> Result<()> {
+fn integrate(
+    repo: &Path,
+    graph: &Graph,
+    id: &str,
+    state: &mut State,
+    path: &Path,
+    timeout: Duration,
+) -> Result<()> {
     if state.tasks[id]["status"] == "validated" {
         verify_integration(repo, graph, state)?;
         task_state_mut(state, id)?["status"] = json!("merging");
@@ -753,7 +809,12 @@ fn integrate(repo: &Path, graph: &Graph, id: &str, state: &mut State, path: &Pat
         {
             let merge_head = git_text(
                 repo,
-                &["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"],
+                &[
+                    "rev-parse",
+                    "--path-format=absolute",
+                    "--git-path",
+                    "MERGE_HEAD",
+                ],
             )?;
             if Path::new(&merge_head).exists() {
                 git(repo, &["merge", "--abort"])?;
@@ -897,13 +958,14 @@ impl Execution<'_> {
         if head != run.state.integration_head {
             ensure!(
                 self.accept_head
-                    .is_some_and(|reference| commit(self.repo, reference).is_ok_and(|accepted| accepted == head))
+                    .is_some_and(|reference| commit(self.repo, reference)
+                        .is_ok_and(|accepted| accepted == head))
                     && ancestor(self.repo, &run.state.integration_head, &head)?,
                 "integration HEAD drifted; inspect and explicitly --accept-head <commit>"
             );
-            run.state
-                .adopted_heads
-                .push(json!({"previous":run.state.integration_head,"accepted":head,"status":"checking"}));
+            run.state.adopted_heads.push(
+                json!({"previous":run.state.integration_head,"accepted":head,"status":"checking"}),
+            );
             run.state.integration_head = head;
         }
 
@@ -993,10 +1055,16 @@ impl Execution<'_> {
             .values()
             .any(|item| item["status"] != "integrated")
         {
-            ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
+            ensure!(
+                !interruption().load(Ordering::SeqCst),
+                "received interruption signal"
+            );
             self.check_active_workers(run)?;
             self.start_ready_workers(run, directory)?;
-            ensure!(!run.active.is_empty(), "no runnable tickets; inspect graph and state");
+            ensure!(
+                !run.active.is_empty(),
+                "no runnable tickets; inspect graph and state"
+            );
             let completed = self.completed_workers(run)?;
             if completed.is_empty() {
                 run.current = None;
@@ -1017,12 +1085,18 @@ impl Execution<'_> {
         for (id, worker) in &run.active {
             run.current = Some(id.clone());
             worker.check_watcher()?;
-            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            ensure!(
+                !worker.expired.load(Ordering::SeqCst),
+                "worker timed out: {id}"
+            );
             let status = worker.child_process()?.try_wait()?;
             let Some(status) = status else {
                 continue;
             };
-            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            ensure!(
+                !worker.expired.load(Ordering::SeqCst),
+                "worker timed out: {id}"
+            );
             ensure!(
                 status.success(),
                 "worker failed ({}); see {}",
@@ -1062,7 +1136,10 @@ impl Execution<'_> {
             .as_array()
             .context("task history is invalid")?;
         let attempt = history.len() + 1;
-        let hash = format!("{:x}", Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes()));
+        let hash = format!(
+            "{:x}",
+            Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes())
+        );
         let worker_root = self
             .repo
             .parent()
@@ -1076,7 +1153,10 @@ impl Execution<'_> {
                 &hash[..12]
             ));
         let worker_path = worker_root.join(format!("{id}-{attempt}"));
-        let branch = format!("{}-{id}-{attempt}", self.graph.branch.trim_start_matches("refs/heads/"));
+        let branch = format!(
+            "{}-{id}-{attempt}",
+            self.graph.branch.trim_start_matches("refs/heads/")
+        );
         let head = commit(self.repo, "HEAD")?;
         let item = task_state_mut(&mut run.state, id)?;
         item["status"] = json!("running");
@@ -1113,7 +1193,10 @@ impl Execution<'_> {
         item["worker_command"] = json!(ticket.worker);
         item["worker_log"] = json!(log_path);
         save_state(&run.state_path, &run.state)?;
-        println!("{}", json!({"event":"started","task":id,"worktree":worker_path}));
+        println!(
+            "{}",
+            json!({"event":"started","task":id,"worktree":worker_path})
+        );
         Ok(worker)
     }
 
@@ -1122,7 +1205,10 @@ impl Execution<'_> {
         for (id, worker) in &run.active {
             run.current = Some(id.clone());
             worker.check_watcher()?;
-            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            ensure!(
+                !worker.expired.load(Ordering::SeqCst),
+                "worker timed out: {id}"
+            );
             if worker.child_process()?.try_wait()?.is_some() {
                 completed.push(id.clone());
             }
@@ -1139,7 +1225,10 @@ impl Execution<'_> {
         worker.cancel_timer()?;
         let mut child = worker.child_process()?;
         let settled = settle_children(&mut child)?;
-        ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+        ensure!(
+            !worker.expired.load(Ordering::SeqCst),
+            "worker timed out: {id}"
+        );
         let status = child.wait()?;
         ensure!(
             status.success(),
@@ -1150,7 +1239,8 @@ impl Execution<'_> {
         ensure!(settled, "worker left live child processes");
         drop(child);
         run.active.remove(id);
-        task_state_mut(&mut run.state, id)?["expected_integration_head"] = json!(run.state.integration_head);
+        task_state_mut(&mut run.state, id)?["expected_integration_head"] =
+            json!(run.state.integration_head);
         let ticket = self
             .graph
             .tickets
@@ -1201,14 +1291,21 @@ impl Execution<'_> {
                 && status != "integrated"
             {
                 let completed_merge = status == "merging"
-                    && task_state(&run.state, id).is_ok_and(|item| matches!(merge_matches(self.repo, item), Ok(true)));
-                let next_status = if completed_merge { "merging" } else { "blocked" };
+                    && task_state(&run.state, id)
+                        .is_ok_and(|item| matches!(merge_matches(self.repo, item), Ok(true)));
+                let next_status = if completed_merge {
+                    "merging"
+                } else {
+                    "blocked"
+                };
                 match task_state_mut(&mut run.state, id) {
                     Ok(item) => {
                         item["status"] = json!(next_status);
                         item["reason"] = json!(format!("{error:#}"));
                     }
-                    Err(error) => cleanup_errors.push(format!("cannot block current ticket {id}: {error:#}")),
+                    Err(error) => {
+                        cleanup_errors.push(format!("cannot block current ticket {id}: {error:#}"))
+                    }
                 }
             }
         }
@@ -1232,7 +1329,9 @@ impl Execution<'_> {
                         item["reason"] = json!("run stopped; inspect retained work before retry");
                     }
                 }
-                Err(error) => cleanup_errors.push(format!("cannot block active ticket {id}: {error:#}")),
+                Err(error) => {
+                    cleanup_errors.push(format!("cannot block active ticket {id}: {error:#}"))
+                }
             }
         }
 
@@ -1245,7 +1344,13 @@ impl Execution<'_> {
     }
 }
 
-fn write_worker_packet(graph: &Graph, worker_path: &Path, id: &str, head: &str, ticket: &Ticket) -> Result<PathBuf> {
+fn write_worker_packet(
+    graph: &Graph,
+    worker_path: &Path,
+    id: &str,
+    head: &str,
+    ticket: &Ticket,
+) -> Result<PathBuf> {
     let work_item = graph
         .path
         .parent()
@@ -1284,7 +1389,9 @@ fn worker_paths_overlap(graph: &Graph, id: &str, active: &BTreeMap<String, Worke
     active.keys().any(|other| {
         ticket.paths.iter().any(|path| {
             graph.tickets[other].paths.iter().any(|owned| {
-                path == owned || path.starts_with(&format!("{owned}/")) || owned.starts_with(&format!("{path}/"))
+                path == owned
+                    || path.starts_with(&format!("{owned}/"))
+                    || owned.starts_with(&format!("{path}/"))
             })
         })
     })
@@ -1344,8 +1451,10 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                         .all(|n| n.is_finite() && *n > 0.0),
                 "jobs and timeouts must be positive"
             );
-            let worker_timeout = Duration::try_from_secs_f64(worker_timeout).context("invalid worker timeout")?;
-            let check_timeout = Duration::try_from_secs_f64(check_timeout).context("invalid check timeout")?;
+            let worker_timeout =
+                Duration::try_from_secs_f64(worker_timeout).context("invalid worker timeout")?;
+            let check_timeout =
+                Duration::try_from_secs_f64(check_timeout).context("invalid check timeout")?;
             ensure!(
                 git(&repo, &["status", "--porcelain", "--untracked-files=all"])?.is_empty(),
                 "integration worktree must be clean before run"
@@ -1359,8 +1468,10 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                 .open(repo.join(".agent/work/.dispatch.lock"))?;
             FileExt::try_lock_exclusive(&lock).context("dispatcher is already running")?;
             interruption().store(false, Ordering::SeqCst);
-            let term = signal_hook::flag::register(signal_hook::consts::SIGTERM, interruption().clone())?;
-            let int = signal_hook::flag::register(signal_hook::consts::SIGINT, interruption().clone())?;
+            let term =
+                signal_hook::flag::register(signal_hook::consts::SIGTERM, interruption().clone())?;
+            let int =
+                signal_hook::flag::register(signal_hook::consts::SIGINT, interruption().clone())?;
             let result = Execution {
                 repo: &repo,
                 graph: &graph,
@@ -1420,7 +1531,10 @@ mod tests {
             .map_err(|_| anyhow!("worker timeout watcher state poisoned"))? =
             Some("simulated watcher failure".to_owned());
         let mut tasks = BTreeMap::new();
-        tasks.insert("ticket".to_owned(), json!({"status":"running", "history":[]}));
+        tasks.insert(
+            "ticket".to_owned(),
+            json!({"status":"running", "history":[]}),
+        );
         let mut active = BTreeMap::new();
         active.insert("ticket".to_owned(), worker);
         let state_path = root.path().join("state.json");

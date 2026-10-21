@@ -8,7 +8,11 @@ use std::{
 };
 
 #[derive(Parser)]
-#[command(name = "skillctl", about = "Synchronize manifest-managed agent skills", version)]
+#[command(
+    name = "skillctl",
+    about = "Synchronize manifest-managed agent skills",
+    version
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

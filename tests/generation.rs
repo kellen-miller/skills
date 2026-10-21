@@ -24,7 +24,10 @@ fn skill_name_only_changes_first_frontmatter_name() -> Result<()> {
         ),
         ("---\n---\nbody\n", "---\nname: unique\n---\nbody\n"),
         ("# body\n", "---\nname: unique\n---\n# body\n"),
-        ("---\nname: old\n---  \nbody", "---\nname: unique\n---  \nbody"),
+        (
+            "---\nname: old\n---  \nbody",
+            "---\nname: unique\n---  \nbody",
+        ),
         (
             "---\nname: old\nname: second\n---\n",
             "---\nname: unique\nname: second\n---\n",
@@ -33,9 +36,15 @@ fn skill_name_only_changes_first_frontmatter_name() -> Result<()> {
         let dir = tempfile::tempdir().unwrap();
         write(&dir.path().join("SKILL.md"), original)?;
         set_skill_name(dir.path(), "unique").unwrap();
-        assert_eq!(fs::read_to_string(dir.path().join("SKILL.md")).unwrap(), expected);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("SKILL.md")).unwrap(),
+            expected
+        );
         set_skill_name(dir.path(), "unique").unwrap();
-        assert_eq!(fs::read_to_string(dir.path().join("SKILL.md")).unwrap(), expected);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("SKILL.md")).unwrap(),
+            expected
+        );
     }
 
     Ok(())
@@ -68,7 +77,10 @@ fn router_matches_description_escaping_and_markdown_bytes() -> Result<()> {
         "- `alpha` (`skills/alpha/GUIDE.md`): Read quoted \"things\": then use <tags> & café.\n",
         "- `beta` (`skills/beta/GUIDE.md`)\n",
     );
-    assert_eq!(fs::read_to_string(dir.path().join("SKILL.md")).unwrap(), expected);
+    assert_eq!(
+        fs::read_to_string(dir.path().join("SKILL.md")).unwrap(),
+        expected
+    );
     assert_eq!(members, ["beta", "alpha"]);
 
     Ok(())
@@ -79,9 +91,21 @@ fn router_indexes_have_bounded_member_counts_and_character_threshold() -> Result
     for (count, description, index_count) in [
         (12, "short".to_owned(), 0),
         (13, "short".to_owned(), 2),
-        (25, "Distinct routing detail ".to_owned() + &"word ".repeat(500), 3),
-        (1, "é".repeat(8000 - "- `task-00` (`skills/task-00/GUIDE.md`)".len()), 0),
-        (1, "é".repeat(8001 - "- `task-00` (`skills/task-00/GUIDE.md`)".len()), 1),
+        (
+            25,
+            "Distinct routing detail ".to_owned() + &"word ".repeat(500),
+            3,
+        ),
+        (
+            1,
+            "é".repeat(8000 - "- `task-00` (`skills/task-00/GUIDE.md`)".len()),
+            0,
+        ),
+        (
+            1,
+            "é".repeat(8001 - "- `task-00` (`skills/task-00/GUIDE.md`)".len()),
+            1,
+        ),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let members: Vec<_> = (0..count).map(|index| format!("task-{index:02}")).collect();
@@ -128,8 +152,14 @@ fn route_guides_rewrites_relative_local_references_only_and_preserves_binary_byt
     let dir = tempfile::tempdir().unwrap();
     let original = "Read [nested](nested/SKILL.md#topic) and `nested/SKILL.md`.\nKeep https://example.com/SKILL.md and /absolute/SKILL.md and missing/SKILL.md and mailto:SKILL.md.\n";
     write(&dir.path().join("SKILL.md"), original)?;
-    write(&dir.path().join("nested/SKILL.md"), "[parent](../SKILL.md)\n")?;
-    write(&dir.path().join("nested/readme.md"), "`./SKILL.md` <../SKILL.md>\n")?;
+    write(
+        &dir.path().join("nested/SKILL.md"),
+        "[parent](../SKILL.md)\n",
+    )?;
+    write(
+        &dir.path().join("nested/readme.md"),
+        "`./SKILL.md` <../SKILL.md>\n",
+    )?;
     let untouched = b"raw\r\n\xff\nhttps://example.com/SKILL.md\n";
     write(&dir.path().join("untouched.md"), untouched)?;
     write(&dir.path().join("data.txt"), "nested/SKILL.md\n")?;
@@ -146,7 +176,10 @@ fn route_guides_rewrites_relative_local_references_only_and_preserves_binary_byt
         fs::read_to_string(dir.path().join("nested/readme.md")).unwrap(),
         "`./GUIDE.md` <../GUIDE.md>\n"
     );
-    assert_eq!(fs::read(dir.path().join("untouched.md")).unwrap(), untouched);
+    assert_eq!(
+        fs::read(dir.path().join("untouched.md")).unwrap(),
+        untouched
+    );
     assert_eq!(
         fs::read_to_string(dir.path().join("data.txt")).unwrap(),
         "nested/SKILL.md\n"

@@ -28,7 +28,10 @@ impl Fixture {
         let cache = temporary.path().join("cache");
         let target = temporary.path().join("claude");
         fs::create_dir_all(&root)?;
-        write(source.join("skills/alpha/SKILL.md"), "---\nname: alpha\n---\n")?;
+        write(
+            source.join("skills/alpha/SKILL.md"),
+            "---\nname: alpha\n---\n",
+        )?;
         let fixture = Self {
             _temporary: temporary,
             root,
@@ -178,7 +181,10 @@ fn warm_sync_preserves_files_and_locked_inode() -> Result<()> {
     assert_eq!(record["dependencies"][0]["id"], "example");
     assert_eq!(record["dependencies"][0]["url"], SOURCE_URL);
     assert_eq!(record["dependencies"][0]["ref"], "HEAD");
-    assert_eq!(record["dependencies"][0]["commit"], f.git(&["rev-parse", "HEAD"])?);
+    assert_eq!(
+        record["dependencies"][0]["commit"],
+        f.git(&["rev-parse", "HEAD"])?
+    );
     assert!(record["state"]["inputs"].is_object());
     assert!(!record["state"]["output"].as_str().unwrap().is_empty());
     absent(f.root.join(".skillctl-state.json"))?;
@@ -197,8 +203,14 @@ fn unrelated_commit_advances_resolution_without_replacing_output() -> Result<()>
     f.sync()?;
     unchanged(&before, f.installed())?;
     let next = f.lock()?;
-    assert_ne!(old["dependencies"][0]["commit"], next["dependencies"][0]["commit"]);
-    assert_eq!(next["dependencies"][0]["commit"], f.git(&["rev-parse", "HEAD"])?);
+    assert_ne!(
+        old["dependencies"][0]["commit"],
+        next["dependencies"][0]["commit"]
+    );
+    assert_eq!(
+        next["dependencies"][0]["commit"],
+        f.git(&["rev-parse", "HEAD"])?
+    );
     assert_eq!(old["state"], next["state"]);
 
     Ok(())
@@ -210,7 +222,10 @@ fn selected_file_changes_and_deletions_publish_together() -> Result<()> {
     write(f.source.join("skills/alpha/obsolete.md"), "Obsolete")?;
     f.commit()?;
     f.sync()?;
-    write(f.source.join("skills/alpha/SKILL.md"), "Updated upstream skill\n")?;
+    write(
+        f.source.join("skills/alpha/SKILL.md"),
+        "Updated upstream skill\n",
+    )?;
     fs::remove_file(f.source.join("skills/alpha/obsolete.md")).unwrap();
     f.commit()?;
     assert!(f.sync()?.contains("UPDATE alpha"));
@@ -279,8 +294,14 @@ fn sync_repairs_local_edits_missing_files_modes_and_stray_git() -> Result<()> {
     f.commit()?;
     f.sync()?;
     write(f.installed(), "Local edit")?;
-    write(f.root.join("_managed/obsolete/extra.md"), "Unexpected directory")?;
-    write(f.root.join("_managed/alpha/.git/config"), "Unexpected metadata")?;
+    write(
+        f.root.join("_managed/obsolete/extra.md"),
+        "Unexpected directory",
+    )?;
+    write(
+        f.root.join("_managed/alpha/.git/config"),
+        "Unexpected metadata",
+    )?;
     let installed_script = f.root.join("_managed/alpha/run.sh");
     fs::set_permissions(&installed_script, fs::Permissions::from_mode(0o644)).unwrap();
     f.sync()?;
@@ -291,7 +312,10 @@ fn sync_repairs_local_edits_missing_files_modes_and_stray_git() -> Result<()> {
     );
     absent(f.root.join("_managed/obsolete"))?;
     absent(f.root.join("_managed/alpha/.git"))?;
-    assert_ne!(fs::metadata(installed_script).unwrap().permissions().mode() & 0o111, 0);
+    assert_ne!(
+        fs::metadata(installed_script).unwrap().permissions().mode() & 0o111,
+        0
+    );
     fs::remove_file(f.installed()).unwrap();
     f.sync()?;
     assert!(f.installed().is_file());
@@ -399,7 +423,10 @@ fn pinned_commit_stays_fixed_and_branch_follows_force_update() -> Result<()> {
     f.dependency["ref"] = json!(pinned);
     f.manifest()?;
     f.sync()?;
-    write(f.source.join("skills/alpha/SKILL.md"), "New branch contents\n")?;
+    write(
+        f.source.join("skills/alpha/SKILL.md"),
+        "New branch contents\n",
+    )?;
     f.commit()?;
     f.sync()?;
     assert!(
@@ -411,7 +438,10 @@ fn pinned_commit_stays_fixed_and_branch_follows_force_update() -> Result<()> {
     f.dependency["ref"] = json!("main");
     f.manifest()?;
     f.sync()?;
-    write(f.source.join("skills/alpha/SKILL.md"), "Rewritten history\n")?;
+    write(
+        f.source.join("skills/alpha/SKILL.md"),
+        "Rewritten history\n",
+    )?;
     f.git(&["add", "-A"])?;
     f.git(&["commit", "--amend", "--no-edit", "-q"])?;
     f.sync()?;
@@ -429,7 +459,10 @@ fn head_follows_remote_default_branch_change() -> Result<()> {
     let f = Fixture::new()?;
     f.sync()?;
     f.git(&["checkout", "-qb", "replacement"])?;
-    write(f.source.join("skills/alpha/SKILL.md"), "New default branch\n")?;
+    write(
+        f.source.join("skills/alpha/SKILL.md"),
+        "New default branch\n",
+    )?;
     f.commit()?;
     f.sync()?;
     assert!(
@@ -470,7 +503,11 @@ fn sparse_selection_change_uses_new_contents() -> Result<()> {
 fn safe_symlink_targets_outside_selection_and_aliased_ancestors_refresh() -> Result<()> {
     let mut f = Fixture::new()?;
     write(f.source.join("shared.md"), "Original reference")?;
-    symlink("../../shared.md", f.source.join("skills/alpha/reference.md")).unwrap();
+    symlink(
+        "../../shared.md",
+        f.source.join("skills/alpha/reference.md"),
+    )
+    .unwrap();
     symlink("skills", f.source.join("alias")).unwrap();
     f.commit()?;
     f.dependency["selection"]["include"][0]["source"] = json!("alias/alpha");
@@ -480,7 +517,10 @@ fn safe_symlink_targets_outside_selection_and_aliased_ancestors_refresh() -> Res
     f.commit()?;
     f.sync()?;
     let reference = f.root.join("_managed/alpha/reference.md");
-    assert_eq!(fs::read_to_string(&reference).unwrap(), "Updated external reference");
+    assert_eq!(
+        fs::read_to_string(&reference).unwrap(),
+        "Updated external reference"
+    );
     assert!(
         !fs::symlink_metadata(reference)
             .unwrap()
@@ -500,7 +540,11 @@ fn escaping_and_cyclic_symlinks_fail_without_publishing() -> Result<()> {
         let lock = fs::read(f.lock_path()).unwrap();
         let outside = f._temporary.path().join("outside.md");
         write(&outside, "Outside repository")?;
-        let target = if cycle { Path::new(".") } else { outside.as_path() };
+        let target = if cycle {
+            Path::new(".")
+        } else {
+            outside.as_path()
+        };
         symlink(target, f.source.join("skills/alpha/unsafe")).unwrap();
         f.commit()?;
         let output = f.run("sync", &[])?;
@@ -567,7 +611,10 @@ fn root_and_shared_cache_locks_exclude_cli_processes() -> Result<()> {
 fn claude_preserves_unchanged_files_lock_and_unowned_entries() -> Result<()> {
     let f = Fixture::new()?;
     f.sync()?;
-    write(f.root.join("authored/SKILL.md"), "---\nname: authored\n---\n")?;
+    write(
+        f.root.join("authored/SKILL.md"),
+        "---\nname: authored\n---\n",
+    )?;
     let lock = fs::read(f.lock_path()).unwrap();
     let lock_info = fs::metadata(f.lock_path()).unwrap();
     f.claude(&[])?;
@@ -584,7 +631,10 @@ fn claude_preserves_unchanged_files_lock_and_unowned_entries() -> Result<()> {
     fs::remove_dir_all(f.root.join("_managed/alpha")).unwrap();
     f.claude(&[])?;
     assert!(f.target.join("authored/extra.md").is_file());
-    assert_eq!(fs::read_to_string(f.target.join("unowned/keep.md")).unwrap(), "Keep");
+    assert_eq!(
+        fs::read_to_string(f.target.join("unowned/keep.md")).unwrap(),
+        "Keep"
+    );
     absent(f.target.join("alpha"))?;
     assert_eq!(lock, fs::read(f.lock_path()).unwrap());
 
@@ -620,7 +670,10 @@ fn claude_dry_run_preserves_files_and_hidden_dependency_removes_owned_skill() ->
     f.manifest()?;
     assert!(f.claude(&["--dry-run"])?.contains("REMOVE alpha"));
     unchanged(&before, &installed)?;
-    assert_eq!(ownership, fs::read(f.target.join(".skillctl-owned")).unwrap());
+    assert_eq!(
+        ownership,
+        fs::read(f.target.join(".skillctl-owned")).unwrap()
+    );
     f.claude(&[])?;
     absent(f.target.join("alpha"))?;
 

@@ -88,9 +88,21 @@ fn rejects_invalid_dependency_fields_without_mutating_managed_output() -> Result
         ("/unknown", json!(true), "unknown keys"),
         ("/id", json!(12), "safe directory name"),
         ("/url", json!(false), "must be a string"),
-        ("/url", json!("git@example.test/repo.git"), "HTTPS GitHub URL"),
-        ("/url", json!("https://example.test/repo.git"), "HTTPS GitHub URL"),
-        ("/url", json!("https://github.com/example/repo"), "HTTPS GitHub URL"),
+        (
+            "/url",
+            json!("git@example.test/repo.git"),
+            "HTTPS GitHub URL",
+        ),
+        (
+            "/url",
+            json!("https://example.test/repo.git"),
+            "HTTPS GitHub URL",
+        ),
+        (
+            "/url",
+            json!("https://github.com/example/repo"),
+            "HTTPS GitHub URL",
+        ),
         ("/ref", json!(12), "non-empty string"),
         ("/ref", json!(""), "non-empty string"),
         ("/claude", json!("no"), "must be a boolean"),
@@ -99,7 +111,11 @@ fn rejects_invalid_dependency_fields_without_mutating_managed_output() -> Result
         ("/sparse", json!("skills"), "list of strings"),
         ("/sparse", json!([12]), "list of strings"),
         ("/sparse", json!([]), "must not be empty"),
-        ("/sparse", json!(["skills", "skills"]), "contains duplicates"),
+        (
+            "/sparse",
+            json!(["skills", "skills"]),
+            "contains duplicates",
+        ),
         ("/sparse", json!(["."]), "cannot be ."),
         ("/sparse", json!(["other"]), "outside sparse paths"),
         ("/sparse", json!(["skill"]), "outside sparse paths"),
@@ -179,7 +195,10 @@ fn rejects_unsafe_paths_and_names() -> Result<()> {
         let mut dep = dependency();
         dep["selection"]["include"][0]["source"] = source.clone();
         let root = fixture(json!([dep]), None)?;
-        assert!(load_manifest(root.path()).is_err(), "accepted source {source}");
+        assert!(
+            load_manifest(root.path()).is_err(),
+            "accepted source {source}"
+        );
     }
 
     for name in [
@@ -204,7 +223,10 @@ fn rejects_unsafe_paths_and_names() -> Result<()> {
             }
 
             let root = fixture(json!([dep]), None)?;
-            assert!(load_manifest(root.path()).is_err(), "accepted {field}: {name}");
+            assert!(
+                load_manifest(root.path()).is_err(),
+                "accepted {field}: {name}"
+            );
         }
     }
 
@@ -230,7 +252,11 @@ fn discovery_validation_and_router_normalization() -> Result<()> {
             json!({}),
             "contains duplicates",
         ),
-        (json!({"mode":"discovery","root":12}), json!({}), "POSIX path"),
+        (
+            json!({"mode":"discovery","root":12}),
+            json!({}),
+            "POSIX path",
+        ),
         (
             json!({"mode":"discovery","root":"skills"}),
             json!({"sparse":["other"]}),
@@ -290,7 +316,10 @@ fn overlay_add_extend_remove_and_local_transports() -> Result<()> {
         let manifest = load_manifest(root.path()).unwrap();
         assert_eq!(manifest.dependencies.len(), 2);
         assert_eq!(manifest.dependencies[1].id, "local");
-        assert_eq!(manifest.dependencies[0].selection.include[1].destination, "beta");
+        assert_eq!(
+            manifest.dependencies[0].selection.include[1].destination,
+            "beta"
+        );
     }
 
     Ok(())
@@ -302,10 +331,19 @@ fn overlay_and_destination_validation() -> Result<()> {
         (json!({"version":1,"unknown":true}), "unknown keys"),
         (json!({}), "missing keys"),
         (json!({"version":2}), "version must be 1"),
-        (json!({"version":1,"add":null}), "add and extend must be lists"),
-        (json!({"version":1,"extend":null}), "add and extend must be lists"),
+        (
+            json!({"version":1,"add":null}),
+            "add and extend must be lists",
+        ),
+        (
+            json!({"version":1,"extend":null}),
+            "add and extend must be lists",
+        ),
         (json!({"version":1,"remove":null}), "remove must be a list"),
-        (json!({"version":1,"add":[dependency()]}), "redefines dependency"),
+        (
+            json!({"version":1,"add":[dependency()]}),
+            "redefines dependency",
+        ),
         (
             json!({"version":1,"extend":[{"id":"missing","include":[{"source":"skills/beta","destination":"beta"}]}]}),
             "unknown dependency",
@@ -314,7 +352,10 @@ fn overlay_and_destination_validation() -> Result<()> {
             json!({"version":1,"extend":[{"id":"example","url":"https://example.test","include":[]}]}),
             "unknown keys",
         ),
-        (json!({"version":1,"extend":[{"id":"example"}]}), "missing keys"),
+        (
+            json!({"version":1,"extend":[{"id":"example"}]}),
+            "missing keys",
+        ),
         (
             json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/alpha","destination":"alpha"}]}]}),
             "repeats a mapping",
@@ -323,8 +364,14 @@ fn overlay_and_destination_validation() -> Result<()> {
             json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/beta","destination":"alpha"}]}]}),
             "duplicate destination",
         ),
-        (json!({"version":1,"remove":["missing"]}), "unknown base dependency"),
-        (json!({"version":1,"remove":["../escape"]}), "safe directory name"),
+        (
+            json!({"version":1,"remove":["missing"]}),
+            "unknown base dependency",
+        ),
+        (
+            json!({"version":1,"remove":["../escape"]}),
+            "safe directory name",
+        ),
     ] {
         let root = fixture(json!([dependency()]), Some(overlay))?;
         assert!(
@@ -370,18 +417,27 @@ fn strict_yaml_documents() -> Result<()> {
     for (source, expected) in [
         ("", "must be a mapping"),
         ("[]", "must be a mapping"),
-        ("version: 1\ndependencies: []\nunknown: true\n", "unknown keys"),
+        (
+            "version: 1\ndependencies: []\nunknown: true\n",
+            "unknown keys",
+        ),
         ("version: 1\n", "missing keys"),
         ("version: '1'\ndependencies: []\n", "version must be 1"),
         ("version: 2\ndependencies: []\n", "version must be 1"),
-        ("version: 1\ndependencies: null\n", "dependencies must be a list"),
+        (
+            "version: 1\ndependencies: null\n",
+            "dependencies must be a list",
+        ),
         ("version: 1\ndependencies: [null]\n", "must be a mapping"),
         (
             "version: 1\ndependencies: []\n---\nversion: 1\ndependencies: []\n",
             "single document",
         ),
         ("version: [\n", "cannot read deps.yaml"),
-        ("version: 1\nversion: 1\ndependencies: []\n", "cannot read deps.yaml"),
+        (
+            "version: 1\nversion: 1\ndependencies: []\n",
+            "cannot read deps.yaml",
+        ),
     ] {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("deps.yaml"), source).unwrap();
@@ -462,8 +518,7 @@ fn yaml_legacy_booleans_preserve_quotes_tags_aliases_and_unicode_positions() -> 
 
 #[test]
 fn overlay_cannot_extend_discovery_escape_sparse_or_reuse_routed_destination() -> Result<()> {
-    let extension =
-        json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/beta","destination":"beta"}]}]});
+    let extension = json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/beta","destination":"beta"}]}]});
     let mut discovery = dependency();
     discovery["selection"] = json!({"mode":"discovery","root":"."});
     let root = fixture(json!([discovery]), Some(extension.clone()))?;
@@ -484,8 +539,7 @@ fn overlay_cannot_extend_discovery_escape_sparse_or_reuse_routed_destination() -
     );
     let mut routed = dependency();
     routed["router"] = json!({"name":"vendor","description":"Vendor"});
-    let extension =
-        json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/beta","destination":"alpha"}]}]});
+    let extension = json!({"version":1,"extend":[{"id":"example","include":[{"source":"skills/beta","destination":"alpha"}]}]});
     let root = fixture(json!([routed.clone()]), Some(extension))?;
     assert!(
         load_manifest(root.path())

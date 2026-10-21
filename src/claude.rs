@@ -76,7 +76,12 @@ pub(crate) fn install_claude(
         &owned_path,
         plan.names.into_iter().collect::<Vec<_>>().join("\n") + "\n",
     )?;
-    writeln!(out, "Installed {} skills into {}", plan.sources.len(), target.display())?;
+    writeln!(
+        out,
+        "Installed {} skills into {}",
+        plan.sources.len(),
+        target.display()
+    )?;
     Ok(())
 }
 

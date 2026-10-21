@@ -70,7 +70,8 @@ pub fn load_manifest(root: &Path) -> Result<Manifest> {
     let mut manifest = Manifest::default();
     let mut base_ids = HashSet::new();
     for (index, raw) in raw.iter().enumerate() {
-        let dependency = normalize_dependency(raw, &format!("deps.yaml.dependencies[{index}]"), true)?;
+        let dependency =
+            normalize_dependency(raw, &format!("deps.yaml.dependencies[{index}]"), true)?;
         ensure!(
             base_ids.insert(dependency.id.clone()),
             "deps.yaml contains duplicate dependency IDs"
@@ -99,8 +100,15 @@ fn apply_overlay(root: &Path, manifest: &mut Manifest, base_ids: &HashSet<String
         return Ok(());
     }
 
-    let overlay = read_manifest_mapping(&overlay_path, &["version", "add", "extend", "remove"], &["version"])?;
-    ensure!(version_one(&overlay["version"]), "deps.local.yaml version must be 1");
+    let overlay = read_manifest_mapping(
+        &overlay_path,
+        &["version", "add", "extend", "remove"],
+        &["version"],
+    )?;
+    ensure!(
+        version_one(&overlay["version"]),
+        "deps.local.yaml version must be 1"
+    );
     let sections = overlay_sections(&overlay)?;
     add_dependencies(manifest, &sections.additions)?;
 
@@ -151,7 +159,11 @@ fn add_dependencies(manifest: &mut Manifest, additions: &[Value]) -> Result<()> 
     Ok(())
 }
 
-fn extend_dependencies(manifest: &mut Manifest, by_id: &HashMap<String, usize>, extensions: &[Value]) -> Result<()> {
+fn extend_dependencies(
+    manifest: &mut Manifest,
+    by_id: &HashMap<String, usize>,
+    extensions: &[Value],
+) -> Result<()> {
     for (index, raw) in extensions.iter().enumerate() {
         let context = format!("deps.local.yaml.extend[{index}]");
         let extension = manifest_mapping(raw, &context, &["id", "include"], &["id", "include"])?;
@@ -192,7 +204,11 @@ fn extend_dependencies(manifest: &mut Manifest, by_id: &HashMap<String, usize>, 
     Ok(())
 }
 
-fn remove_dependencies(manifest: &mut Manifest, base_ids: &HashSet<String>, removals: &[Value]) -> Result<()> {
+fn remove_dependencies(
+    manifest: &mut Manifest,
+    base_ids: &HashSet<String>,
+    removals: &[Value],
+) -> Result<()> {
     let mut removed = HashSet::new();
     for (index, raw) in removals.iter().enumerate() {
         let id = normalized_name(raw, &format!("deps.local.yaml.remove[{index}]"))?;
@@ -231,7 +247,10 @@ fn validate_destinations(manifest: &Manifest) -> Result<()> {
                 "managed destination {destination} collides with an authored skill"
             );
             if let Some(owner) = owners.insert(destination.clone(), &dependency.id) {
-                bail!("duplicate destination {destination} in {owner} and {}", dependency.id);
+                bail!(
+                    "duplicate destination {destination} in {owner} and {}",
+                    dependency.id
+                );
             }
         }
     }
@@ -245,7 +264,9 @@ fn read_manifest_mapping(path: &Path, allowed: &[&str], required: &[&str]) -> Re
     let data = legacy_yaml_booleans(&data).with_context(|| format!("cannot read {name}"))?;
     let mut documents = serde_yaml_ng::Deserializer::from_str(&data);
     let raw = match documents.next() {
-        Some(document) => Value::deserialize(document).with_context(|| format!("cannot read {name}"))?,
+        Some(document) => {
+            Value::deserialize(document).with_context(|| format!("cannot read {name}"))?
+        }
         None => Value::Null,
     };
     ensure!(
@@ -255,7 +276,12 @@ fn read_manifest_mapping(path: &Path, allowed: &[&str], required: &[&str]) -> Re
     Ok(manifest_mapping(&raw, &name, allowed, required)?.clone())
 }
 
-fn manifest_mapping<'a>(raw: &'a Value, context: &str, allowed: &[&str], required: &[&str]) -> Result<&'a YamlMapping> {
+fn manifest_mapping<'a>(
+    raw: &'a Value,
+    context: &str,
+    allowed: &[&str],
+    required: &[&str],
+) -> Result<&'a YamlMapping> {
     let mapping = raw
         .as_mapping()
         .with_context(|| format!("{context} must be a mapping"))?;
@@ -299,7 +325,10 @@ fn version_one(value: &Value) -> bool {
 /// separator or NUL byte.
 pub fn safe_name(value: &str) -> Result<()> {
     ensure!(
-        !value.is_empty() && value != "_managed" && !value.starts_with('.') && !value.contains(['/', '\\', '\0']),
+        !value.is_empty()
+            && value != "_managed"
+            && !value.starts_with('.')
+            && !value.contains(['/', '\\', '\0']),
         "must be a safe directory name"
     );
     Ok(())
@@ -347,7 +376,10 @@ fn unique_manifest_strings(raw: &Value, context: &str, paths: bool) -> Result<Ve
         } else {
             normalized_name(value, &format!("{context} entry"))?
         };
-        ensure!(seen.insert(normalized.clone()), "{context} contains duplicates");
+        ensure!(
+            seen.insert(normalized.clone()),
+            "{context} contains duplicates"
+        );
         result.push(normalized);
     }
 
@@ -370,12 +402,20 @@ fn normalize_include(raw: &Value, context: &str) -> Result<Vec<Mapping>> {
     let mut destinations = HashSet::new();
     for (index, raw) in values.iter().enumerate() {
         let context = format!("{context}[{index}]");
-        let item = manifest_mapping(raw, &context, &["source", "destination"], &["source", "destination"])?;
+        let item = manifest_mapping(
+            raw,
+            &context,
+            &["source", "destination"],
+            &["source", "destination"],
+        )?;
         let mapping = Mapping {
             source: safe_repo_path(&item["source"], &format!("{context}.source"), true)?,
             destination: normalized_name(&item["destination"], &format!("{context}.destination"))?,
         };
-        ensure!(pairs.insert(mapping.clone()), "{context} contains duplicate mappings");
+        ensure!(
+            pairs.insert(mapping.clone()),
+            "{context} contains duplicate mappings"
+        );
         ensure!(
             destinations.insert(mapping.destination.clone()),
             "{context} contains duplicate destinations"
@@ -390,7 +430,15 @@ fn normalize_dependency(raw: &Value, context: &str, base: bool) -> Result<Depend
     let item = manifest_mapping(
         raw,
         context,
-        &["id", "url", "ref", "sparse", "selection", "claude", "router"],
+        &[
+            "id",
+            "url",
+            "ref",
+            "sparse",
+            "selection",
+            "claude",
+            "router",
+        ],
         &["id", "url", "selection"],
     )?;
     let mut dependency = Dependency {
@@ -426,7 +474,10 @@ fn normalize_dependency(raw: &Value, context: &str, base: bool) -> Result<Depend
 
     if let Some(sparse) = item.get("sparse").filter(|value| !value.is_null()) {
         dependency.sparse = unique_manifest_strings(sparse, &format!("{context}.sparse"), true)?;
-        ensure!(!dependency.sparse.is_empty(), "{context}.sparse must not be empty");
+        ensure!(
+            !dependency.sparse.is_empty(),
+            "{context}.sparse must not be empty"
+        );
     }
 
     if let Some(claude) = item.get("claude") {
@@ -481,7 +532,8 @@ fn normalize_selection(raw: &Value, context: &str, sparse: &[String]) -> Result<
                 &["mode", "include"],
                 &["mode", "include"],
             )?;
-            selection.include = normalize_include(&mapping["include"], &format!("{context}.selection.include"))?;
+            selection.include =
+                normalize_include(&mapping["include"], &format!("{context}.selection.include"))?;
             for item in &selection.include {
                 ensure!(
                     sparse.is_empty() || beneath_sparse(&item.source, sparse),
@@ -497,9 +549,14 @@ fn normalize_selection(raw: &Value, context: &str, sparse: &[String]) -> Result<
                 &["mode", "root", "exclude"],
                 &["mode", "root"],
             )?;
-            selection.root = safe_repo_path(&mapping["root"], &format!("{context}.selection.root"), true)?;
+            selection.root =
+                safe_repo_path(&mapping["root"], &format!("{context}.selection.root"), true)?;
             if let Some(exclude) = mapping.get("exclude") {
-                selection.exclude = unique_manifest_strings(exclude, &format!("{context}.selection.exclude"), false)?;
+                selection.exclude = unique_manifest_strings(
+                    exclude,
+                    &format!("{context}.selection.exclude"),
+                    false,
+                )?;
             }
 
             ensure!(

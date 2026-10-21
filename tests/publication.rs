@@ -58,15 +58,22 @@ fn tracked_tree_contains_only_owned_rust_and_public_skill_content() -> Result<()
     assert!(!paths.is_empty());
     for path in paths {
         assert!(
-            allowed.contains(&path.as_str()) || prefixes.iter().any(|prefix| path.starts_with(prefix)),
+            allowed.contains(&path.as_str())
+                || prefixes.iter().any(|prefix| path.starts_with(prefix)),
             "unexpected tracked path: {path}"
         );
         for component in Path::new(&path).components() {
             let component = component.as_os_str();
             assert!(
-                !["_managed", ".skillctl.lock", "deps.local.yaml", "__pycache__", "target"]
-                    .iter()
-                    .any(|forbidden| component == *forbidden),
+                ![
+                    "_managed",
+                    ".skillctl.lock",
+                    "deps.local.yaml",
+                    "__pycache__",
+                    "target"
+                ]
+                .iter()
+                .any(|forbidden| component == *forbidden),
                 "generated/private path: {path}"
             );
         }
@@ -149,7 +156,10 @@ fn rust_tooling_replaces_python_and_go_tooling() {
         "Cargo.toml",
         "Cargo.lock",
     ] {
-        assert!(root().join(path).is_file(), "missing Rust entry point/tooling: {path}");
+        assert!(
+            root().join(path).is_file(),
+            "missing Rust entry point/tooling: {path}"
+        );
     }
 
     for path in [
@@ -159,7 +169,10 @@ fn rust_tooling_replaces_python_and_go_tooling() {
         "go.sum",
         "dispatch-tickets/scripts/dispatch.py",
     ] {
-        assert!(!root().join(path).exists(), "obsolete tooling remains: {path}");
+        assert!(
+            !root().join(path).exists(),
+            "obsolete tooling remains: {path}"
+        );
     }
 }
 
@@ -182,7 +195,8 @@ fn ci_is_pr_only_and_uses_shared_rust_and_duplication_checks() {
         assert!(
             actions.iter().any(|action| action
                 .strip_prefix(&prefix)
-                .is_some_and(|reference| reference.len() == 40 && reference.chars().all(|c| c.is_ascii_hexdigit()))),
+                .is_some_and(|reference| reference.len() == 40
+                    && reference.chars().all(|c| c.is_ascii_hexdigit()))),
             "missing immutable shared action: {name}"
         );
     }
@@ -209,7 +223,10 @@ fn tracked_content_has_no_credentials_or_generated_markers() -> Result<()> {
         }
 
         let content = fs::read_to_string(file).unwrap();
-        assert!(!credentials.is_match(&content), "credential/generated marker in {path}");
+        assert!(
+            !credentials.is_match(&content),
+            "credential/generated marker in {path}"
+        );
         for capture in ssh_url.captures_iter(&content) {
             let host = capture.get(1).unwrap().as_str();
             assert!(

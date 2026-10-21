@@ -14,7 +14,8 @@ type CompiledRegex = LazyLock<std::result::Result<Regex, regex::Error>>;
 
 static FRONTMATTER: CompiledRegex = LazyLock::new(|| Regex::new(r"(?sm-u)\A---\n(.*?)^---[ \t]*$"));
 static NAME_LINE: CompiledRegex = LazyLock::new(|| Regex::new(r"(?m-u)^name:.*$"));
-static GUIDE_REFERENCE: CompiledRegex = LazyLock::new(|| Regex::new(r#"(?-u)[^\s`()<>"']*SKILL\.md"#));
+static GUIDE_REFERENCE: CompiledRegex =
+    LazyLock::new(|| Regex::new(r#"(?-u)[^\s`()<>"']*SKILL\.md"#));
 static URL_SCHEME: CompiledRegex = LazyLock::new(|| Regex::new(r"\A[A-Za-z][A-Za-z0-9+.-]*:"));
 
 fn compiled_regex(regex: &'static CompiledRegex, name: &str) -> Result<&'static Regex> {
@@ -49,8 +50,9 @@ pub fn render_template(name: &str, data: Value) -> Result<Vec<u8>> {
                 ));
             }
 
-            let encoded = serde_json::to_string(&value)
-                .map_err(|error| minijinja::Error::new(minijinja::ErrorKind::InvalidOperation, error.to_string()))?;
+            let encoded = serde_json::to_string(&value).map_err(|error| {
+                minijinja::Error::new(minijinja::ErrorKind::InvalidOperation, error.to_string())
+            })?;
             let mut ascii = String::new();
             for character in encoded.chars() {
                 if character < '\u{7f}' {
@@ -141,7 +143,9 @@ pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<(
             match description {
                 serde_yaml_ng::Value::String(text) => summary = text.clone(),
                 serde_yaml_ng::Value::Bool(true) => summary = "true".to_owned(),
-                serde_yaml_ng::Value::Number(number) if number.as_f64() != Some(0.0) => summary = number.to_string(),
+                serde_yaml_ng::Value::Number(number) if number.as_f64() != Some(0.0) => {
+                    summary = number.to_string()
+                }
                 _ => {}
             }
 
@@ -245,24 +249,28 @@ pub fn route_guides(dir: &Path) -> Result<()> {
             .parent()
             .context("Markdown document has no parent")?;
         let content = fs::read(&document)?;
-        let rewritten = guide_reference.replace_all(&content, |captures: &regex::bytes::Captures<'_>| {
-            let target = &captures[0];
-            let Ok(target_text) = std::str::from_utf8(target) else {
-                return target.to_vec();
-            };
-            if Path::new(target_text).is_absolute() || target_text.contains("://") || url_scheme.is_match(target) {
-                return target.to_vec();
-            }
+        let rewritten =
+            guide_reference.replace_all(&content, |captures: &regex::bytes::Captures<'_>| {
+                let target = &captures[0];
+                let Ok(target_text) = std::str::from_utf8(target) else {
+                    return target.to_vec();
+                };
+                if Path::new(target_text).is_absolute()
+                    || target_text.contains("://")
+                    || url_scheme.is_match(target)
+                {
+                    return target.to_vec();
+                }
 
-            let resolved = parent.join(target_text).canonicalize();
-            if resolved.as_ref().is_ok_and(|path| renamed.contains(path)) {
-                let mut replacement = target[..target.len() - "SKILL.md".len()].to_vec();
-                replacement.extend_from_slice(b"GUIDE.md");
-                return replacement;
-            }
+                let resolved = parent.join(target_text).canonicalize();
+                if resolved.as_ref().is_ok_and(|path| renamed.contains(path)) {
+                    let mut replacement = target[..target.len() - "SKILL.md".len()].to_vec();
+                    replacement.extend_from_slice(b"GUIDE.md");
+                    return replacement;
+                }
 
-            target.to_vec()
-        });
+                target.to_vec()
+            });
         if rewritten != content {
             fs::write(&document, rewritten)?;
         }

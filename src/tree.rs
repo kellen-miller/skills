@@ -22,7 +22,10 @@ pub(crate) fn tree_fingerprint(root: &Path) -> Result<String> {
         let path = entry.path();
         let info = fs::symlink_metadata(path)?;
         let (kind, content) = if info.file_type().is_symlink() {
-            ("link", fs::read_link(path)?.as_os_str().as_encoded_bytes().to_vec())
+            (
+                "link",
+                fs::read_link(path)?.as_os_str().as_encoded_bytes().to_vec(),
+            )
         } else if info.is_file() {
             ("file", fs::read(path)?)
         } else if info.is_dir() {
@@ -67,13 +70,23 @@ pub(crate) fn directory_names(root: &Path) -> Result<Vec<String>> {
     Ok(names)
 }
 
-pub(crate) fn copy_skill_tree(source: &Path, target: &Path, repository: Option<&Path>) -> Result<()> {
+pub(crate) fn copy_skill_tree(
+    source: &Path,
+    target: &Path,
+    repository: Option<&Path>,
+) -> Result<()> {
     let repository = repository.map(fs::canonicalize).transpose()?;
     copy_entry(source, target, repository.as_deref(), &mut HashSet::new())
 }
 
-fn copy_entry(source: &Path, target: &Path, repository: Option<&Path>, ancestors: &mut HashSet<PathBuf>) -> Result<()> {
-    let resolved = fs::canonicalize(source).with_context(|| format!("cannot resolve {}", source.display()))?;
+fn copy_entry(
+    source: &Path,
+    target: &Path,
+    repository: Option<&Path>,
+    ancestors: &mut HashSet<PathBuf>,
+) -> Result<()> {
+    let resolved =
+        fs::canonicalize(source).with_context(|| format!("cannot resolve {}", source.display()))?;
     if let Some(repository) = repository {
         ensure!(
             resolved.starts_with(repository),
@@ -93,7 +106,12 @@ fn copy_entry(source: &Path, target: &Path, repository: Option<&Path>, ancestors
         for entry in fs::read_dir(source)? {
             let entry = entry?;
             if entry.file_name() != ".git" {
-                copy_entry(&entry.path(), &target.join(entry.file_name()), repository, ancestors)?;
+                copy_entry(
+                    &entry.path(),
+                    &target.join(entry.file_name()),
+                    repository,
+                    ancestors,
+                )?;
             }
         }
 
@@ -102,7 +120,11 @@ fn copy_entry(source: &Path, target: &Path, repository: Option<&Path>, ancestors
         return Ok(());
     }
 
-    ensure!(info.is_file(), "unsupported skill file: {}", source.display());
+    ensure!(
+        info.is_file(),
+        "unsupported skill file: {}",
+        source.display()
+    );
     fs::copy(source, target)?;
     fs::set_permissions(target, info.permissions())?;
     Ok(())

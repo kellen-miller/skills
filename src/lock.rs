@@ -63,7 +63,8 @@ pub(crate) fn sync_lock(root: &Path) -> Result<File> {
 
 pub(crate) fn render_sync_lock(record: &SyncRecord) -> Result<Vec<u8>> {
     let content = render_template("lock.json.j2", serde_json::to_value(record)?)?;
-    serde_json::from_slice::<SyncRecord>(&content).context("lock template produced invalid JSON")?;
+    serde_json::from_slice::<SyncRecord>(&content)
+        .context("lock template produced invalid JSON")?;
     Ok(content)
 }
 

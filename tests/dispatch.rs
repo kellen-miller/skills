@@ -98,7 +98,13 @@ impl Fixture {
         Ok(String::from_utf8(output.stdout)?.trim().to_owned())
     }
 
-    fn add_ticket(&mut self, id: &str, dependencies: &[&str], mode: &str, paths: &[&str]) -> Result<()> {
+    fn add_ticket(
+        &mut self,
+        id: &str,
+        dependencies: &[&str],
+        mode: &str,
+        paths: &[&str],
+    ) -> Result<()> {
         let worker = worker_binary()?;
         fs::write(
             self.work.join(format!("{id}.md")),
@@ -154,7 +160,10 @@ impl Fixture {
     }
 
     fn save_state(&self, state: &Value) -> Result<()> {
-        fs::write(self.work.join("dispatch/state.json"), serde_json::to_vec(state)?)?;
+        fs::write(
+            self.work.join("dispatch/state.json"),
+            serde_json::to_vec(state)?,
+        )?;
         Ok(())
     }
 }
@@ -233,7 +242,10 @@ fn parallel_workers_and_dependency_start_from_integrated_tip() -> Result<()> {
     let head = f.git(&["rev-parse", "HEAD"])?;
     passed(f.call(&["run", "--jobs", "2"])?);
     assert_eq!(f.git(&["rev-parse", "HEAD"])?, head);
-    failed(f.call(&["run", "--jobs", "2", "--retry", "a"])?, "--retry requires");
+    failed(
+        f.call(&["run", "--jobs", "2", "--retry", "a"])?,
+        "--retry requires",
+    );
 
     Ok(())
 }
@@ -267,7 +279,11 @@ fn rejects_invalid_graphs_before_mutation() -> Result<()> {
         ("owned_paths", json!(["src\\file"]), "unsafe"),
         ("worker_command", json!("shell command"), "argv arrays"),
         ("checks", json!([]), "checks"),
-        ("commit_message", json!("bad message"), "Conventional Commit"),
+        (
+            "commit_message",
+            json!("bad message"),
+            "Conventional Commit",
+        ),
         ("deliverable", json!(" "), "deliverable"),
         ("id", json!("Upper"), "lowercase slugs"),
     ];
@@ -289,7 +305,11 @@ fn explicit_approved_refs_ignored_inputs_and_ancestry_are_required() -> Result<(
         ("version", json!(2), "version=1"),
         ("base_ref", json!("main"), "explicit Git refs"),
         ("integration_branch", json!("main"), "explicit Git refs"),
-        ("integration_branch", json!("refs/heads/other"), "integration branch"),
+        (
+            "integration_branch",
+            json!("refs/heads/other"),
+            "integration branch",
+        ),
     ] {
         let mut f = Fixture::new()?;
         f.data[field] = value;
@@ -440,7 +460,10 @@ fn graph_and_brief_fingerprints_and_explicit_head_adoption() -> Result<()> {
 fn worker_timeout_preserves_work_and_blocks_ticket() -> Result<()> {
     let mut f = Fixture::new()?;
     f.mode(0, "slow", &[])?;
-    failed(f.call(&["run", "--jobs", "1", "--worker-timeout", "0.2"])?, "timed out");
+    failed(
+        f.call(&["run", "--jobs", "1", "--worker-timeout", "0.2"])?,
+        "timed out",
+    );
     let state = f.state()?;
     let item = &state["tasks"]["a"];
     assert_eq!(item["status"], "blocked");
@@ -623,7 +646,10 @@ fn check_timeout_and_check_descendants_are_stopped() -> Result<()> {
     let mut f = Fixture::new()?;
     let pid = f.root.path().join("child.pid");
     f.data["tickets"][0]["checks"] = json!([[worker_binary()?, "check-child", pid]]);
-    failed(f.call(&["run", "--jobs", "1"])?, "check left live child processes");
+    failed(
+        f.call(&["run", "--jobs", "1"])?,
+        "check left live child processes",
+    );
     stopped(&pid)?;
 
     Ok(())

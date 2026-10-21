@@ -2,8 +2,8 @@ use crate::{
     generation::{route_guides, set_skill_name, write_router},
     git::{acquire_dependency, cache_root, run_git},
     lock::{
-        DependencyInput, GenerationInputs, GenerationState, ResolvedDependency, SyncRecord, render_sync_lock,
-        sync_lock, write_sync_lock,
+        DependencyInput, GenerationInputs, GenerationState, ResolvedDependency, SyncRecord,
+        render_sync_lock, sync_lock, write_sync_lock,
     },
     manifest::{Dependency, Manifest, Mapping, Router},
     tree::{copy_skill_tree, directory_names, tree_fingerprint, trees_equal},
@@ -62,7 +62,9 @@ fn acquire_dependencies(dependencies: &[Dependency], cache: &Path) -> Result<Vec
     thread::scope(|scope| -> Result<()> {
         let mut workers = Vec::new();
         for _ in 0..dependencies.len().min(4) {
-            workers.push(scope.spawn(|| acquire_dependency_worker(&next, dependencies, cache, &results)));
+            workers.push(
+                scope.spawn(|| acquire_dependency_worker(&next, dependencies, cache, &results)),
+            );
         }
 
         for worker in workers {
@@ -187,14 +189,16 @@ fn prepare_dependency(
                 .join(&mapping.destination)
         } else {
             ensure!(
-                !durable.contains(&mapping.destination) && destinations.insert(mapping.destination.clone()),
+                !durable.contains(&mapping.destination)
+                    && destinations.insert(mapping.destination.clone()),
                 "duplicate destination or authored skill collision: {}",
                 mapping.destination
             );
             PathBuf::from(&mapping.destination)
         };
         let source = clone.join(&mapping.source);
-        has_symlinks |= inspect_skill_source(dependency, &source, &mapping.source, clone, &resolved_clone)?;
+        has_symlinks |=
+            inspect_skill_source(dependency, &source, &mapping.source, clone, &resolved_clone)?;
         selected.push(SelectedSkill {
             source,
             relative,
@@ -309,13 +313,15 @@ fn dependency_mappings(dependency: &Dependency, clone: &Path) -> Result<Vec<Mapp
         .into_iter()
         .filter_map(|name| {
             let source = discovery_root.join(&name);
-            (!dependency.selection.exclude.contains(&name) && source.is_dir() && source.join("SKILL.md").is_file())
-                .then(|| {
-                    source.strip_prefix(clone).map(|path| Mapping {
-                        source: path.to_string_lossy().into_owned(),
-                        destination: name,
-                    })
+            (!dependency.selection.exclude.contains(&name)
+                && source.is_dir()
+                && source.join("SKILL.md").is_file())
+            .then(|| {
+                source.strip_prefix(clone).map(|path| Mapping {
+                    source: path.to_string_lossy().into_owned(),
+                    destination: name,
                 })
+            })
         })
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(Into::into)
@@ -449,7 +455,11 @@ pub fn sync(root: &Path, manifest: &Manifest, dry_run: bool, out: &mut dyn Write
         writeln!(
             out,
             "{} {} managed skills (unchanged)",
-            if dry_run { "Would install" } else { "Installed" },
+            if dry_run {
+                "Would install"
+            } else {
+                "Installed"
+            },
             prepared.destinations.len()
         )?;
         return Ok(());
@@ -465,7 +475,14 @@ pub fn sync(root: &Path, manifest: &Manifest, dry_run: bool, out: &mut dyn Write
         return Ok(());
     }
 
-    publish_generation(&mut lock, temporary, &stage, &current, &live_fingerprint, &mut record)?;
+    publish_generation(
+        &mut lock,
+        temporary,
+        &stage,
+        &current,
+        &live_fingerprint,
+        &mut record,
+    )?;
     writeln!(out, "Installed {} managed skills", new_names.len())?;
     Ok(())
 }

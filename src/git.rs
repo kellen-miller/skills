@@ -51,7 +51,10 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
         let valid = (|| -> Result<bool> {
             let git_dir = run_git(&clone, &["rev-parse", "--absolute-git-dir"])?;
             let origin = run_git(&clone, &["config", "--get", "remote.origin.url"])?;
-            Ok(fs::canonicalize(git_dir)? == fs::canonicalize(clone.join(".git"))? && origin == dependency.url)
+            Ok(
+                fs::canonicalize(git_dir)? == fs::canonicalize(clone.join(".git"))?
+                    && origin == dependency.url,
+            )
         })()
         .unwrap_or(false);
         if !valid {
