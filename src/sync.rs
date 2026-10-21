@@ -162,7 +162,10 @@ fn prepare_dependency(
     let router = dependency.router.as_ref().map(|router| {
         (
             router.clone(),
-            mappings.iter().map(|mapping| mapping.destination.clone()).collect(),
+            mappings
+                .iter()
+                .map(|mapping| mapping.destination.clone())
+                .collect(),
         )
     });
     if let Some((router, _)) = &router {
@@ -179,7 +182,9 @@ fn prepare_dependency(
     let mut has_symlinks = false;
     for mapping in &mappings {
         let relative = if let Some(router) = &dependency.router {
-            PathBuf::from(&router.name).join("skills").join(&mapping.destination)
+            PathBuf::from(&router.name)
+                .join("skills")
+                .join(&mapping.destination)
         } else {
             ensure!(
                 !durable.contains(&mapping.destination) && destinations.insert(mapping.destination.clone()),
@@ -259,7 +264,10 @@ fn inspect_skill_source(
         source.display()
     );
     let mut has_symlinks = false;
-    for ancestor in source.ancestors().take_while(|ancestor| ancestor.starts_with(clone)) {
+    for ancestor in source
+        .ancestors()
+        .take_while(|ancestor| ancestor.starts_with(clone))
+    {
         has_symlinks |= fs::symlink_metadata(ancestor)?.file_type().is_symlink();
     }
 

@@ -33,7 +33,7 @@ jobs:
             exit "$status"
           fi
       - name: Check Rust workspace
-        uses: kellen-miller/ci/.github/actions/rust-check@6d83b6c0e8b6f407fa2f11e1c974449649cfa1f6 # main
+        uses: kellen-miller/ci/.github/actions/rust-check@c7d3bb1cf4ddd49dc3fd32a8739449960f6b7416 # main
       - name: Regenerate anonymously
         shell: bash
         run: |
@@ -47,7 +47,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@6d83b6c0e8b6f407fa2f11e1c974449649cfa1f6 # main
+        uses: kellen-miller/ci/.github/actions/code-duplication@c7d3bb1cf4ddd49dc3fd32a8739449960f6b7416 # main
         with:
           # renovate: datasource=crate depName=jscpd versioning=semver
           version: '5.4.1'

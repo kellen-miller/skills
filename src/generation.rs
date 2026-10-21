@@ -148,7 +148,10 @@ pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<(
             summary = summary.split_whitespace().collect::<Vec<_>>().join(" ");
         }
 
-        size += format!("- `{name}` (`skills/{name}/GUIDE.md`)").chars().count() + summary.chars().count();
+        size += format!("- `{name}` (`skills/{name}/GUIDE.md`)")
+            .chars()
+            .count()
+            + summary.chars().count();
         entries.push(RouterEntry { name, summary });
     }
 
@@ -159,7 +162,10 @@ pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<(
             let last = group.last().context("router index group is empty")?;
             indexes.push(RouterIndex {
                 filename: format!("{}--{}.md", first.name, last.name),
-                names: group.iter().map(|entry| format!("`{}`", entry.name)).collect(),
+                names: group
+                    .iter()
+                    .map(|entry| format!("`{}`", entry.name))
+                    .collect(),
                 entries: group,
             });
         }
@@ -211,7 +217,11 @@ pub fn route_guides(dir: &Path) -> Result<()> {
             continue;
         }
 
-        if entry.path().extension().is_some_and(|extension| extension == "md") {
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|extension| extension == "md")
+        {
             documents.push(entry.path().to_owned());
         }
 
@@ -231,7 +241,9 @@ pub fn route_guides(dir: &Path) -> Result<()> {
     }
 
     for document in documents {
-        let parent = document.parent().context("Markdown document has no parent")?;
+        let parent = document
+            .parent()
+            .context("Markdown document has no parent")?;
         let content = fs::read(&document)?;
         let rewritten = guide_reference.replace_all(&content, |captures: &regex::bytes::Captures<'_>| {
             let target = &captures[0];

@@ -244,9 +244,16 @@ fn discovery_validation_and_router_normalization() -> Result<()> {
     ] {
         let mut dep = dependency();
         dep["selection"] = selection;
-        dep.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        dep.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
         let root = fixture(json!([dep]), None)?;
-        assert!(load_manifest(root.path()).unwrap_err().to_string().contains(expected));
+        assert!(
+            load_manifest(root.path())
+                .unwrap_err()
+                .to_string()
+                .contains(expected)
+        );
     }
 
     let mut dep = dependency();
@@ -256,7 +263,11 @@ fn discovery_validation_and_router_normalization() -> Result<()> {
     let root = fixture(json!([dep]), None)?;
     let manifest = load_manifest(root.path()).unwrap();
     assert_eq!(
-        manifest.dependencies[0].router.as_ref().unwrap().description,
+        manifest.dependencies[0]
+            .router
+            .as_ref()
+            .unwrap()
+            .description,
         "Use for vendor work."
     );
     assert!(!manifest.dependencies[0].claude);
@@ -317,7 +328,10 @@ fn overlay_and_destination_validation() -> Result<()> {
     ] {
         let root = fixture(json!([dependency()]), Some(overlay))?;
         assert!(
-            load_manifest(root.path()).unwrap_err().to_string().contains(expected),
+            load_manifest(root.path())
+                .unwrap_err()
+                .to_string()
+                .contains(expected),
             "expected {expected}"
         );
     }
@@ -407,7 +421,10 @@ fn yaml_legacy_booleans_preserve_quotes_tags_aliases_and_unicode_positions() -> 
         let manifest = load_manifest(root.path());
         if token.contains(['\"', '\'', '!', '|']) || token == "yEs" {
             assert!(
-                manifest.unwrap_err().to_string().contains("must be a boolean"),
+                manifest
+                    .unwrap_err()
+                    .to_string()
+                    .contains("must be a boolean"),
                 "{token}"
             );
         } else {

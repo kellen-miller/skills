@@ -31,10 +31,18 @@ pub(crate) fn install_claude(
     let _lock = sync_lock(root)?;
     let plan = stage_claude_install(root, manifest, target)?;
     let owned_path = target.join(".skillctl-owned");
-    for name in plan.changed.iter().filter(|name| plan.owned.contains(*name)) {
+    for name in plan
+        .changed
+        .iter()
+        .filter(|name| plan.owned.contains(*name))
+    {
         writeln!(out, "UPDATE {name}")?;
     }
-    for name in plan.sources.keys().filter(|name| !plan.owned.contains(*name)) {
+    for name in plan
+        .sources
+        .keys()
+        .filter(|name| !plan.owned.contains(*name))
+    {
         writeln!(out, "ADD {name}")?;
     }
     for name in &plan.removed {
@@ -99,7 +107,10 @@ fn stage_claude_install(root: &Path, manifest: &Manifest, target: &Path) -> Resu
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error.into()),
     };
-    let owned: BTreeSet<_> = owned_content.split_whitespace().map(str::to_owned).collect();
+    let owned: BTreeSet<_> = owned_content
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     for name in &owned {
         ensure!(
             !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0']),
@@ -119,7 +130,9 @@ fn stage_claude_install(root: &Path, manifest: &Manifest, target: &Path) -> Resu
         }
     }
 
-    let stage = tempfile::Builder::new().prefix(".skillctl-stage-").tempdir_in(target)?;
+    let stage = tempfile::Builder::new()
+        .prefix(".skillctl-stage-")
+        .tempdir_in(target)?;
     let mut changed = Vec::new();
     for (name, source) in &sources {
         let destination = target.join(name);

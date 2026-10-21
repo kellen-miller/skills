@@ -87,7 +87,11 @@ struct State {
 }
 
 fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>> {
-    let output = Command::new("git").arg("-C").arg(repo).args(args).output()?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()?;
     ensure!(
         output.status.success(),
         "git {}: {}",
@@ -268,7 +272,9 @@ fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
     );
     let worker = command(&raw["worker_command"])?;
     let integration_checks = checks(&raw["integration_checks"]).context("graph requires integration_checks")?;
-    let entries = raw["tickets"].as_array().context("graph requires nonempty tickets")?;
+    let entries = raw["tickets"]
+        .as_array()
+        .context("graph requires nonempty tickets")?;
     ensure!(!entries.is_empty(), "graph requires nonempty tickets");
     let slug = Regex::new(r"^[a-z0-9][a-z0-9-]{0,31}$")?;
     let subject =
@@ -515,7 +521,9 @@ fn watch_worker(child: &Mutex<Child>, cancelled: &AtomicBool, expired: &AtomicBo
             return Ok(());
         }
 
-        let mut child = child.lock().map_err(|_| anyhow!("worker process lock poisoned"))?;
+        let mut child = child
+            .lock()
+            .map_err(|_| anyhow!("worker process lock poisoned"))?;
         if child.try_wait()?.is_some() {
             return Ok(());
         }
@@ -577,7 +585,9 @@ impl Worker {
     }
 
     fn child_process(&self) -> Result<MutexGuard<'_, Child>> {
-        self.child.lock().map_err(|_| anyhow!("worker process lock poisoned"))
+        self.child
+            .lock()
+            .map_err(|_| anyhow!("worker process lock poisoned"))
     }
 
     fn check_watcher(&self) -> Result<()> {
@@ -596,7 +606,9 @@ impl Worker {
     fn cancel_timer(&mut self) -> Result<()> {
         self.cancelled.store(true, Ordering::SeqCst);
         if let Some(timer) = self.timer.take() {
-            timer.join().map_err(|_| anyhow!("worker timeout watcher panicked"))?;
+            timer
+                .join()
+                .map_err(|_| anyhow!("worker timeout watcher panicked"))?;
         }
 
         self.check_watcher()
@@ -612,7 +624,10 @@ impl Drop for Worker {
             }
         }
 
-        let mut child = self.child.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut child = self
+            .child
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Err(error) = stop_process(&mut child) {
             eprintln!("cannot stop worker during cleanup: {error:#}");
         }
@@ -671,7 +686,10 @@ fn verify_worker(repo: &Path, ticket: &Ticket, item: &Value) -> Result<(PathBuf,
 
 fn run_checks(commands: &[Vec<String>], cwd: &Path, log_path: &Path, timeout: Duration) -> Result<Value> {
     let mut proof = Vec::new();
-    let mut log = OpenOptions::new().create(true).append(true).open(log_path)?;
+    let mut log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
     for argv in commands {
         ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
         writeln!(log, "\nCHECK {}", serde_json::to_string(argv)?)?;
@@ -897,7 +915,10 @@ impl Execution<'_> {
                 "--retry requires a blocked or interrupted running ticket"
             );
             let mut attempt = item.clone();
-            attempt.as_object_mut().context("invalid task state")?.remove("history");
+            attempt
+                .as_object_mut()
+                .context("invalid task state")?
+                .remove("history");
             item["history"]
                 .as_array_mut()
                 .context("invalid attempt history")?
@@ -966,7 +987,12 @@ impl Execution<'_> {
     }
 
     fn execute_tickets(&self, run: &mut RunState, directory: &Path) -> Result<()> {
-        while run.state.tasks.values().any(|item| item["status"] != "integrated") {
+        while run
+            .state
+            .tasks
+            .values()
+            .any(|item| item["status"] != "integrated")
+        {
             ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
             self.check_active_workers(run)?;
             self.start_ready_workers(run, directory)?;
@@ -1037,14 +1063,18 @@ impl Execution<'_> {
             .context("task history is invalid")?;
         let attempt = history.len() + 1;
         let hash = format!("{:x}", Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes()));
-        let worker_root = self.repo.parent().context("repository has no parent")?.join(format!(
-            ".{}-dispatch-{}",
-            self.repo
-                .file_name()
-                .context("repository has no name")?
-                .to_string_lossy(),
-            &hash[..12]
-        ));
+        let worker_root = self
+            .repo
+            .parent()
+            .context("repository has no parent")?
+            .join(format!(
+                ".{}-dispatch-{}",
+                self.repo
+                    .file_name()
+                    .context("repository has no name")?
+                    .to_string_lossy(),
+                &hash[..12]
+            ));
         let worker_path = worker_root.join(format!("{id}-{attempt}"));
         let branch = format!("{}-{id}-{attempt}", self.graph.branch.trim_start_matches("refs/heads/"));
         let head = commit(self.repo, "HEAD")?;
@@ -1102,7 +1132,10 @@ impl Execution<'_> {
     }
 
     fn finish_worker(&self, run: &mut RunState, id: &str) -> Result<()> {
-        let worker = run.active.get_mut(id).context("completed worker is missing")?;
+        let worker = run
+            .active
+            .get_mut(id)
+            .context("completed worker is missing")?;
         worker.cancel_timer()?;
         let mut child = worker.child_process()?;
         let settled = settle_children(&mut child)?;
@@ -1219,7 +1252,10 @@ fn write_worker_packet(graph: &Graph, worker_path: &Path, id: &str, head: &str, 
         .context("graph has no parent")?
         .file_name()
         .context("graph parent has no name")?;
-    let packet = worker_path.join(".agent/work").join(work_item).join("task.md");
+    let packet = worker_path
+        .join(".agent/work")
+        .join(work_item)
+        .join("task.md");
     git(
         worker_path,
         &[
@@ -1280,7 +1316,11 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
         "--repo must name the integration worktree root"
     );
     let graph = load_graph(&repo, &args.graph)?;
-    let directory = graph.path.parent().context("graph has no parent")?.join("dispatch");
+    let directory = graph
+        .path
+        .parent()
+        .context("graph has no parent")?
+        .join("dispatch");
     match args.command {
         Action::Status => {
             let head = commit(&repo, "HEAD")?;

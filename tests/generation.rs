@@ -102,7 +102,9 @@ fn router_indexes_have_bounded_member_counts_and_character_threshold() -> Result
         )
         .unwrap();
         let indexes = if dir.path().join("indexes").exists() {
-            fs::read_dir(dir.path().join("indexes")).unwrap().collect::<Vec<_>>()
+            fs::read_dir(dir.path().join("indexes"))
+                .unwrap()
+                .collect::<Vec<_>>()
         } else {
             vec![]
         };

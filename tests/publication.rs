@@ -97,7 +97,12 @@ fn readme_is_a_valid_flat_skill() {
             .unwrap()
             .is_match(metadata["name"].as_str().unwrap())
     );
-    assert!(metadata["description"].as_str().unwrap().starts_with("Use when "));
+    assert!(
+        metadata["description"]
+            .as_str()
+            .unwrap()
+            .starts_with("Use when ")
+    );
 }
 
 #[test]

@@ -92,7 +92,10 @@ struct OverlaySections {
 
 fn apply_overlay(root: &Path, manifest: &mut Manifest, base_ids: &HashSet<String>) -> Result<()> {
     let overlay_path = root.join("deps.local.yaml");
-    if !overlay_path.try_exists().context("cannot read deps.local.yaml")? {
+    if !overlay_path
+        .try_exists()
+        .context("cannot read deps.local.yaml")?
+    {
         return Ok(());
     }
 
@@ -114,7 +117,10 @@ fn apply_overlay(root: &Path, manifest: &mut Manifest, base_ids: &HashSet<String
 fn overlay_sections(overlay: &YamlMapping) -> Result<OverlaySections> {
     let section = |name: &str, missing_message: &str| -> Result<Vec<Value>> {
         match overlay.get(name) {
-            Some(value) => Ok(value.as_sequence().with_context(|| missing_message.to_owned())?.clone()),
+            Some(value) => Ok(value
+                .as_sequence()
+                .with_context(|| missing_message.to_owned())?
+                .clone()),
             None => Ok(Vec::new()),
         }
     };
@@ -459,7 +465,10 @@ fn normalize_selection(raw: &Value, context: &str, sparse: &[String]) -> Result<
     let mapping = raw
         .as_mapping()
         .with_context(|| format!("{context}.selection must be a mapping"))?;
-    let mode = mapping.get("mode").and_then(Value::as_str).unwrap_or_default();
+    let mode = mapping
+        .get("mode")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let mut selection = Selection {
         mode: mode.to_owned(),
         ..Selection::default()

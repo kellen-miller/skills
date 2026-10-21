@@ -241,7 +241,11 @@ fn destination_rename_and_router_replace_previous_layout() -> Result<()> {
     f.manifest()?;
     f.sync()?;
     absent(f.root.join("_managed/renamed"))?;
-    assert!(f.root.join("_managed/vendor/skills/renamed/GUIDE.md").is_file());
+    assert!(
+        f.root
+            .join("_managed/vendor/skills/renamed/GUIDE.md")
+            .is_file()
+    );
     assert!(f.root.join("_managed/vendor/SKILL.md").is_file());
 
     Ok(())
@@ -280,7 +284,11 @@ fn sync_repairs_local_edits_missing_files_modes_and_stray_git() -> Result<()> {
     let installed_script = f.root.join("_managed/alpha/run.sh");
     fs::set_permissions(&installed_script, fs::Permissions::from_mode(0o644)).unwrap();
     f.sync()?;
-    assert!(fs::read_to_string(f.installed()).unwrap().contains("name: alpha"));
+    assert!(
+        fs::read_to_string(f.installed())
+            .unwrap()
+            .contains("name: alpha")
+    );
     absent(f.root.join("_managed/obsolete"))?;
     absent(f.root.join("_managed/alpha/.git"))?;
     assert_ne!(fs::metadata(installed_script).unwrap().permissions().mode() & 0o111, 0);
@@ -407,7 +415,11 @@ fn pinned_commit_stays_fixed_and_branch_follows_force_update() -> Result<()> {
     f.git(&["add", "-A"])?;
     f.git(&["commit", "--amend", "--no-edit", "-q"])?;
     f.sync()?;
-    assert!(fs::read_to_string(f.installed()).unwrap().contains("Rewritten history"));
+    assert!(
+        fs::read_to_string(f.installed())
+            .unwrap()
+            .contains("Rewritten history")
+    );
 
     Ok(())
 }
@@ -469,7 +481,12 @@ fn safe_symlink_targets_outside_selection_and_aliased_ancestors_refresh() -> Res
     f.sync()?;
     let reference = f.root.join("_managed/alpha/reference.md");
     assert_eq!(fs::read_to_string(&reference).unwrap(), "Updated external reference");
-    assert!(!fs::symlink_metadata(reference).unwrap().file_type().is_symlink());
+    assert!(
+        !fs::symlink_metadata(reference)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
 
     Ok(())
 }

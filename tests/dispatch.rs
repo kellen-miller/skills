@@ -35,7 +35,9 @@ fn worker_binary() -> Result<&'static Path> {
         })();
         fixture.map_err(|error| format!("{error:#}"))
     });
-    let (_, binary) = fixture.as_ref().map_err(|error| anyhow::anyhow!(error.clone()))?;
+    let (_, binary) = fixture
+        .as_ref()
+        .map_err(|error| anyhow::anyhow!(error.clone()))?;
     Ok(binary)
 }
 
@@ -83,7 +85,11 @@ impl Fixture {
     }
 
     fn git(&self, args: &[&str]) -> Result<String> {
-        let output = Command::new("git").arg("-C").arg(&self.repo).args(args).output()?;
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&self.repo)
+            .args(args)
+            .output()?;
         anyhow::ensure!(
             output.status.success(),
             "git {args:?}: {}",
@@ -174,7 +180,9 @@ fn failed(output: Output, message: &str) {
 
 fn stopped(pid: &Path) -> Result<()> {
     let pid = fs::read_to_string(pid)?;
-    let result = Command::new("ps").args(["-p", pid.trim(), "-o", "stat="]).output()?;
+    let result = Command::new("ps")
+        .args(["-p", pid.trim(), "-o", "stat="])
+        .output()?;
     let status = String::from_utf8_lossy(&result.stdout);
     assert!(
         status.trim().is_empty() || status.trim().starts_with('Z'),
@@ -344,7 +352,10 @@ fn failed_worker_requires_explicit_retry_and_preserves_attempt() -> Result<()> {
     let gate = f.root.path().join("gate");
     f.mode(0, "fail", &[&gate])?;
     failed(f.call(&["run", "--jobs", "1"])?, "worker failed (7)");
-    let first = f.state()?["tasks"]["a"]["worker_path"].as_str().unwrap().to_owned();
+    let first = f.state()?["tasks"]["a"]["worker_path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     failed(f.call(&["run", "--jobs", "1"])?, "explicit --retry");
     fs::write(gate, "fixed").unwrap();
     passed(f.call(&["run", "--jobs", "1", "--retry", "a"])?);
@@ -389,7 +400,12 @@ fn integration_check_retry_never_reapplies_ticket() -> Result<()> {
     let state = f.state()?;
     assert_eq!(state["tasks"]["a"]["integration_commit"], merged);
     assert_eq!(state["tasks"]["a"]["history"].as_array().unwrap().len(), 1);
-    assert_eq!(f.git(&["log", "--format=%s"])?.matches("feat: implement a").count(), 1);
+    assert_eq!(
+        f.git(&["log", "--format=%s"])?
+            .matches("feat: implement a")
+            .count(),
+        1
+    );
 
     Ok(())
 }
@@ -474,7 +490,12 @@ fn completed_merge_reconciled_after_state_write_interruption() -> Result<()> {
     passed(f.call(&["run", "--jobs", "1"])?);
     assert_eq!(f.state()?["tasks"]["a"]["status"], "integrated");
     assert_eq!(f.git(&["rev-parse", "HEAD"])?, head.as_str().unwrap());
-    assert_eq!(f.git(&["log", "--format=%s"])?.matches("feat: implement a").count(), 1);
+    assert_eq!(
+        f.git(&["log", "--format=%s"])?
+            .matches("feat: implement a")
+            .count(),
+        1
+    );
 
     Ok(())
 }
@@ -549,7 +570,11 @@ fn deadline_enforced_during_checks_before_new_launches() -> Result<()> {
         "worker timed out: b",
     );
     let start: u64 = fs::read_to_string(began).unwrap().trim().parse().unwrap();
-    let stop: u64 = fs::read_to_string(stopped_at).unwrap().trim().parse().unwrap();
+    let stop: u64 = fs::read_to_string(stopped_at)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
     assert!(stop - start <= 3, "deadline elapsed: {}", stop - start);
     let state = f.state()?;
     assert_eq!(state["tasks"]["b"]["status"], "blocked");
@@ -564,7 +589,11 @@ fn blocked_retry_refuses_live_previous_worker_group() -> Result<()> {
     let gate = f.root.path().join("gate");
     f.mode(0, "fail", &[&gate])?;
     failed(f.call(&["run", "--jobs", "1"])?, "worker failed");
-    let mut child = Command::new("sleep").arg("30").process_group(0).spawn().unwrap();
+    let mut child = Command::new("sleep")
+        .arg("30")
+        .process_group(0)
+        .spawn()
+        .unwrap();
     let operation = (|| {
         let mut state = f.state()?;
         state["tasks"]["a"]["pid"] = json!(child.id());
