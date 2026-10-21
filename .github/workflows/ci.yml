@@ -33,7 +33,7 @@ jobs:
             exit "$status"
           fi
       - name: Check Rust workspace
-        uses: kellen-miller/ci/.github/actions/rust-check@0ee482cdd0ea61bc8b5d95cc8b45195fc0df0d66 # main
+        uses: kellen-miller/ci/.github/actions/rust-check@9478f2f23f217048a86cb1916fb78b312f20afa7 # main
       - name: Regenerate anonymously
         shell: bash
         run: |
