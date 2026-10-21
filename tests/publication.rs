@@ -1,3 +1,4 @@
+use anyhow::Result;
 use regex::Regex;
 use serde_yaml_ng::Value;
 use std::{
@@ -11,23 +12,26 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-fn tracked_paths() -> Vec<String> {
+fn tracked_paths() -> Result<Vec<String>> {
     let output = Command::new("git")
         .args(["ls-files", "-z"])
         .current_dir(root())
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+        .output()?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git ls-files failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     output
         .stdout
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8(path.to_vec()).unwrap())
-        .collect()
+        .map(|path| String::from_utf8(path.to_vec()).map_err(anyhow::Error::from))
+        .collect::<Result<Vec<_>>>()
 }
 
 #[test]
-fn tracked_tree_contains_only_owned_rust_and_public_skill_content() {
+fn tracked_tree_contains_only_owned_rust_and_public_skill_content() -> Result<()> {
     let allowed = [
         ".gitignore",
         "LICENSE",
@@ -50,26 +54,19 @@ fn tracked_tree_contains_only_owned_rust_and_public_skill_content() {
         "tests/",
         "templates/",
     ];
-    let paths = tracked_paths();
+    let paths = tracked_paths()?;
     assert!(!paths.is_empty());
     for path in paths {
         assert!(
-            allowed.contains(&path.as_str())
-                || prefixes.iter().any(|prefix| path.starts_with(prefix)),
+            allowed.contains(&path.as_str()) || prefixes.iter().any(|prefix| path.starts_with(prefix)),
             "unexpected tracked path: {path}"
         );
         for component in Path::new(&path).components() {
             let component = component.as_os_str();
             assert!(
-                ![
-                    "_managed",
-                    ".skillctl.lock",
-                    "deps.local.yaml",
-                    "__pycache__",
-                    "target"
-                ]
-                .iter()
-                .any(|forbidden| component == *forbidden),
+                !["_managed", ".skillctl.lock", "deps.local.yaml", "__pycache__", "target"]
+                    .iter()
+                    .any(|forbidden| component == *forbidden),
                 "generated/private path: {path}"
             );
         }
@@ -85,6 +82,8 @@ fn tracked_tree_contains_only_owned_rust_and_public_skill_content() {
             "owned source must be Rust: {path}"
         );
     }
+
+    Ok(())
 }
 
 #[test]
@@ -98,12 +97,7 @@ fn readme_is_a_valid_flat_skill() {
             .unwrap()
             .is_match(metadata["name"].as_str().unwrap())
     );
-    assert!(
-        metadata["description"]
-            .as_str()
-            .unwrap()
-            .starts_with("Use when ")
-    );
+    assert!(metadata["description"].as_str().unwrap().starts_with("Use when "));
 }
 
 #[test]
@@ -150,10 +144,7 @@ fn rust_tooling_replaces_python_and_go_tooling() {
         "Cargo.toml",
         "Cargo.lock",
     ] {
-        assert!(
-            root().join(path).is_file(),
-            "missing Rust entry point/tooling: {path}"
-        );
+        assert!(root().join(path).is_file(), "missing Rust entry point/tooling: {path}");
     }
 
     for path in [
@@ -163,10 +154,7 @@ fn rust_tooling_replaces_python_and_go_tooling() {
         "go.sum",
         "dispatch-tickets/scripts/dispatch.py",
     ] {
-        assert!(
-            !root().join(path).exists(),
-            "obsolete tooling remains: {path}"
-        );
+        assert!(!root().join(path).exists(), "obsolete tooling remains: {path}");
     }
 }
 
@@ -189,8 +177,7 @@ fn ci_is_pr_only_and_uses_shared_rust_and_duplication_checks() {
         assert!(
             actions.iter().any(|action| action
                 .strip_prefix(&prefix)
-                .is_some_and(|reference| reference.len() == 40
-                    && reference.chars().all(|c| c.is_ascii_hexdigit()))),
+                .is_some_and(|reference| reference.len() == 40 && reference.chars().all(|c| c.is_ascii_hexdigit()))),
             "missing immutable shared action: {name}"
         );
     }
@@ -199,7 +186,7 @@ fn ci_is_pr_only_and_uses_shared_rust_and_duplication_checks() {
 }
 
 #[test]
-fn tracked_content_has_no_credentials_or_generated_markers() {
+fn tracked_content_has_no_credentials_or_generated_markers() -> Result<()> {
     let credentials = Regex::new(concat!(
         r"BEGIN (?:RSA|OPENSSH|EC) PRIVATE ",
         r"KEY|",
@@ -210,17 +197,14 @@ fn tracked_content_has_no_credentials_or_generated_markers() {
     ))
     .unwrap();
     let ssh_url = Regex::new(concat!("git", r#"@([a-zA-Z0-9._-]+):[^\s"']+"#)).unwrap();
-    for path in tracked_paths() {
+    for path in tracked_paths()? {
         let file = root().join(&path);
         if !file.is_file() {
             continue;
         }
 
         let content = fs::read_to_string(file).unwrap();
-        assert!(
-            !credentials.is_match(&content),
-            "credential/generated marker in {path}"
-        );
+        assert!(!credentials.is_match(&content), "credential/generated marker in {path}");
         for capture in ssh_url.captures_iter(&content) {
             let host = capture.get(1).unwrap().as_str();
             assert!(
@@ -229,4 +213,6 @@ fn tracked_content_has_no_credentials_or_generated_markers() {
             );
         }
     }
+
+    Ok(())
 }

@@ -8,11 +8,7 @@ use std::{
 };
 
 #[derive(Parser)]
-#[command(
-    name = "skillctl",
-    about = "Synchronize manifest-managed agent skills",
-    version
-)]
+#[command(name = "skillctl", about = "Synchronize manifest-managed agent skills", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -40,11 +36,15 @@ enum Commands {
     },
 }
 
+/// Run one `skillctl` command using the supplied process arguments.
+///
+/// # Errors
+///
+/// Returns an error when argument parsing, root discovery, manifest validation, or
+/// synchronization or installation fails.
 pub fn run(args: Vec<OsString>, out: &mut dyn Write) -> Result<()> {
     let cli = Cli::try_parse_from(args)?;
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .context("HOME is not set")?;
+    let home = std::env::var_os("HOME").map(PathBuf::from).context("HOME is not set")?;
     let (root, target, dry_run, run_sync, no_claude) = match cli.command {
         Commands::Sync {
             dry_run,

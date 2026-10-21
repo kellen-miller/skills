@@ -19,7 +19,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, MutexGuard, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -87,11 +87,7 @@ struct State {
 }
 
 fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .output()?;
+    let output = Command::new("git").arg("-C").arg(repo).args(args).output()?;
     ensure!(
         output.status.success(),
         "git {}: {}",
@@ -106,10 +102,7 @@ fn git_text(repo: &Path, args: &[&str]) -> Result<String> {
 }
 
 fn commit(repo: &Path, reference: &str) -> Result<String> {
-    git_text(
-        repo,
-        &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
-    )
+    git_text(repo, &["rev-parse", "--verify", &format!("{reference}^{{commit}}")])
 }
 
 fn ancestor(repo: &Path, earlier: &str, later: &str) -> Result<bool> {
@@ -274,104 +267,25 @@ fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
         "integration HEAD does not descend from base_ref"
     );
     let worker = command(&raw["worker_command"])?;
-    let integration_checks =
-        checks(&raw["integration_checks"]).context("graph requires integration_checks")?;
-    let entries = raw["tickets"]
-        .as_array()
-        .context("graph requires nonempty tickets")?;
+    let integration_checks = checks(&raw["integration_checks"]).context("graph requires integration_checks")?;
+    let entries = raw["tickets"].as_array().context("graph requires nonempty tickets")?;
     ensure!(!entries.is_empty(), "graph requires nonempty tickets");
     let slug = Regex::new(r"^[a-z0-9][a-z0-9-]{0,31}$")?;
-    let subject = Regex::new(
-        r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: [^\r\n]+$",
-    )?;
+    let subject =
+        Regex::new(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: [^\r\n]+$")?;
     let mut tickets = BTreeMap::new();
     let mut inputs = Vec::new();
     for entry in entries {
-        ensure!(entry.is_object(), "tickets must be objects");
-        let id = text(&entry["id"])?;
+        let (id, ticket, input) = parse_ticket(repo, &path, entry, &worker, &slug, &subject)?;
         ensure!(
-            slug.is_match(id) && !tickets.contains_key(id),
+            !tickets.contains_key(&id),
             "ticket IDs must be unique lowercase slugs, at most 32 chars"
         );
-        let deliverable =
-            text(&entry["deliverable"]).with_context(|| format!("{id} requires a deliverable"))?;
-        ensure!(
-            !deliverable.trim().is_empty(),
-            "{id} requires a deliverable"
-        );
-        let dependencies = strings(&entry["depends_on"])
-            .with_context(|| format!("{id} requires depends_on as an ID list"))?;
-        ensure!(
-            dependencies.iter().collect::<BTreeSet<_>>().len() == dependencies.len(),
-            "{id} has duplicate dependencies"
-        );
-        let paths = entry["owned_paths"]
-            .as_array()
-            .with_context(|| format!("{id} requires owned_paths"))?;
-        ensure!(!paths.is_empty(), "{id} requires owned_paths");
-        let paths = paths.iter().map(owned_path).collect::<Result<Vec<_>>>()?;
-        let message = text(&entry["commit_message"])?;
-        ensure!(
-            message.chars().count() <= 50 && subject.is_match(message),
-            "{id} requires a Conventional Commit subject of at most 50 chars"
-        );
-        let worker = if entry.get("worker_command").is_some() {
-            command(&entry["worker_command"])?
-        } else {
-            worker.clone()
-        };
-        let task_checks =
-            checks(&entry["checks"]).with_context(|| format!("{id} requires checks"))?;
-        let brief_path = ignored_file(
-            repo,
-            &path
-                .parent()
-                .context("graph has no parent")?
-                .join(text(&entry["brief"])?),
-        )?;
-        let brief = fs::read_to_string(brief_path)?
-            .replace("\r\n", "\n")
-            .replace('\r', "\n");
-        ensure!(!brief.trim().is_empty(), "{id} brief is empty");
-        inputs.push(json!([id, brief]));
-        tickets.insert(
-            id.to_owned(),
-            Ticket {
-                deliverable: deliverable.to_owned(),
-                dependencies,
-                paths,
-                message: message.to_owned(),
-                worker,
-                checks: task_checks,
-                brief,
-            },
-        );
+        inputs.push(input);
+        tickets.insert(id, ticket);
     }
 
-    ensure!(
-        tickets
-            .values()
-            .flat_map(|t| &t.dependencies)
-            .all(|d| tickets.contains_key(d)),
-        "graph references an unknown dependency"
-    );
-    let mut remaining: BTreeSet<_> = tickets.keys().cloned().collect();
-    while !remaining.is_empty() {
-        let ready: Vec<_> = remaining
-            .iter()
-            .filter(|id| {
-                tickets[*id]
-                    .dependencies
-                    .iter()
-                    .all(|d| !remaining.contains(d))
-            })
-            .cloned()
-            .collect();
-        ensure!(!ready.is_empty(), "graph has a dependency cycle");
-        for id in ready {
-            remaining.remove(&id);
-        }
-    }
+    validate_ticket_graph(&tickets)?;
 
     let digest = format!(
         "{:x}",
@@ -386,9 +300,101 @@ fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
     })
 }
 
+fn parse_ticket(
+    repo: &Path,
+    graph_path: &Path,
+    entry: &Value,
+    default_worker: &[String],
+    slug: &Regex,
+    subject: &Regex,
+) -> Result<(String, Ticket, Value)> {
+    ensure!(entry.is_object(), "tickets must be objects");
+    let id = text(&entry["id"])?;
+    ensure!(
+        slug.is_match(id),
+        "ticket IDs must be unique lowercase slugs, at most 32 chars"
+    );
+    let deliverable = text(&entry["deliverable"]).with_context(|| format!("{id} requires a deliverable"))?;
+    ensure!(!deliverable.trim().is_empty(), "{id} requires a deliverable");
+    let dependencies =
+        strings(&entry["depends_on"]).with_context(|| format!("{id} requires depends_on as an ID list"))?;
+    ensure!(
+        dependencies.iter().collect::<BTreeSet<_>>().len() == dependencies.len(),
+        "{id} has duplicate dependencies"
+    );
+    let paths = entry["owned_paths"]
+        .as_array()
+        .with_context(|| format!("{id} requires owned_paths"))?;
+    ensure!(!paths.is_empty(), "{id} requires owned_paths");
+    let paths = paths.iter().map(owned_path).collect::<Result<Vec<_>>>()?;
+    let message = text(&entry["commit_message"])?;
+    ensure!(
+        message.chars().count() <= 50 && subject.is_match(message),
+        "{id} requires a Conventional Commit subject of at most 50 chars"
+    );
+    let worker = if entry.get("worker_command").is_some() {
+        command(&entry["worker_command"])?
+    } else {
+        default_worker.to_owned()
+    };
+    let checks = checks(&entry["checks"]).with_context(|| format!("{id} requires checks"))?;
+    let brief_path = ignored_file(
+        repo,
+        &graph_path
+            .parent()
+            .context("graph has no parent")?
+            .join(text(&entry["brief"])?),
+    )?;
+    let brief = fs::read_to_string(brief_path)?
+        .replace("\r\n", "\n")
+        .replace('\r', "\n");
+    ensure!(!brief.trim().is_empty(), "{id} brief is empty");
+    Ok((
+        id.to_owned(),
+        Ticket {
+            deliverable: deliverable.to_owned(),
+            dependencies,
+            paths,
+            message: message.to_owned(),
+            worker,
+            checks,
+            brief: brief.clone(),
+        },
+        json!([id, brief]),
+    ))
+}
+
+fn validate_ticket_graph(tickets: &BTreeMap<String, Ticket>) -> Result<()> {
+    ensure!(
+        tickets
+            .values()
+            .flat_map(|ticket| &ticket.dependencies)
+            .all(|dependency| tickets.contains_key(dependency)),
+        "graph references an unknown dependency"
+    );
+    let mut remaining: BTreeSet<_> = tickets.keys().cloned().collect();
+    while !remaining.is_empty() {
+        let ready: Vec<_> = remaining
+            .iter()
+            .filter(|id| {
+                tickets[*id]
+                    .dependencies
+                    .iter()
+                    .all(|dependency| !remaining.contains(dependency))
+            })
+            .cloned()
+            .collect();
+        ensure!(!ready.is_empty(), "graph has a dependency cycle");
+        for id in ready {
+            remaining.remove(&id);
+        }
+    }
+
+    Ok(())
+}
+
 fn save_state(path: &Path, state: &State) -> Result<()> {
-    let mut temporary =
-        tempfile::NamedTempFile::new_in(path.parent().context("state has no parent")?)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(path.parent().context("state has no parent")?)?;
     serde_json::to_writer_pretty(&mut temporary, state)?;
     temporary.write_all(b"\n")?;
     temporary.as_file().sync_all()?;
@@ -423,19 +429,25 @@ fn load_state(path: &Path, graph: &Graph, head: String) -> Result<State> {
     ensure!(
         state.tasks.values().all(|t| matches!(
             t["status"].as_str(),
-            Some(
-                "pending"
-                    | "running"
-                    | "validated"
-                    | "merging"
-                    | "checking"
-                    | "integrated"
-                    | "blocked"
-            )
+            Some("pending" | "running" | "validated" | "merging" | "checking" | "integrated" | "blocked")
         ) && t["history"].is_array()),
         "invalid task status or history"
     );
     Ok(state)
+}
+
+fn task_state<'a>(state: &'a State, id: &str) -> Result<&'a Value> {
+    state
+        .tasks
+        .get(id)
+        .with_context(|| format!("state is missing ticket {id}"))
+}
+
+fn task_state_mut<'a>(state: &'a mut State, id: &str) -> Result<&'a mut Value> {
+    state
+        .tasks
+        .get_mut(id)
+        .with_context(|| format!("state is missing ticket {id}"))
 }
 
 fn frontier(graph: &Graph, state: &State) -> Vec<String> {
@@ -475,7 +487,10 @@ fn stop_process(child: &mut Child) -> Result<()> {
 
         let deadline = Instant::now() + Duration::from_secs(3);
         while process_alive(pid)? && Instant::now() < deadline {
-            let _ = child.try_wait();
+            if child.try_wait()?.is_some() {
+                break;
+            }
+
             thread::sleep(Duration::from_millis(20));
         }
 
@@ -491,6 +506,28 @@ fn stop_process(child: &mut Child) -> Result<()> {
 
     child.wait()?;
     Ok(())
+}
+
+fn watch_worker(child: &Mutex<Child>, cancelled: &AtomicBool, expired: &AtomicBool, timeout: Duration) -> Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if cancelled.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        let mut child = child.lock().map_err(|_| anyhow!("worker process lock poisoned"))?;
+        if child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            expired.store(true, Ordering::SeqCst);
+            stop_process(&mut child)?;
+            return Ok(());
+        }
+
+        drop(child);
+        thread::sleep(Duration::from_millis(20));
+    }
 }
 
 fn settle_children(child: &mut Child) -> Result<bool> {
@@ -510,6 +547,7 @@ struct Worker {
     child: Arc<Mutex<Child>>,
     cancelled: Arc<AtomicBool>,
     expired: Arc<AtomicBool>,
+    watch_error: Arc<Mutex<Option<String>>>,
     timer: Option<thread::JoinHandle<()>>,
 }
 
@@ -518,48 +556,65 @@ impl Worker {
         let child = Arc::new(Mutex::new(cmd.process_group(0).spawn()?));
         let cancelled = Arc::new(AtomicBool::new(false));
         let expired = Arc::new(AtomicBool::new(false));
-        let (watch_child, watch_cancelled, watch_expired) =
-            (child.clone(), cancelled.clone(), expired.clone());
+        let watch_error = Arc::new(Mutex::new(None));
+        let (watch_child, watch_cancelled, watch_expired, watch_failure) =
+            (child.clone(), cancelled.clone(), expired.clone(), watch_error.clone());
         let timer = thread::spawn(move || {
-            let deadline = Instant::now() + timeout;
-            while !watch_cancelled.load(Ordering::SeqCst) {
-                let mut child = watch_child.lock().expect("worker mutex poisoned");
-                match child.try_wait() {
-                    Ok(Some(_)) => break,
-                    Ok(None) if Instant::now() >= deadline => {
-                        watch_expired.store(true, Ordering::SeqCst);
-                        let _ = stop_process(&mut child);
-                        break;
-                    }
-                    Err(_) => break,
-                    _ => {}
-                }
-
-                drop(child);
-                thread::sleep(Duration::from_millis(20));
+            let result = watch_worker(&watch_child, &watch_cancelled, &watch_expired, timeout);
+            if let Err(error) = result
+                && let Ok(mut failure) = watch_failure.lock()
+            {
+                *failure = Some(format!("{error:#}"));
             }
         });
         Ok(Self {
             child,
             cancelled,
             expired,
+            watch_error,
             timer: Some(timer),
         })
     }
 
-    fn cancel_timer(&mut self) {
+    fn child_process(&self) -> Result<MutexGuard<'_, Child>> {
+        self.child.lock().map_err(|_| anyhow!("worker process lock poisoned"))
+    }
+
+    fn check_watcher(&self) -> Result<()> {
+        if let Some(error) = self
+            .watch_error
+            .lock()
+            .map_err(|_| anyhow!("worker timeout watcher state poisoned"))?
+            .take()
+        {
+            bail!("worker timeout watcher failed: {error}");
+        }
+
+        Ok(())
+    }
+
+    fn cancel_timer(&mut self) -> Result<()> {
         self.cancelled.store(true, Ordering::SeqCst);
         if let Some(timer) = self.timer.take() {
-            let _ = timer.join();
+            timer.join().map_err(|_| anyhow!("worker timeout watcher panicked"))?;
         }
+
+        self.check_watcher()
     }
 }
 
 impl Drop for Worker {
     fn drop(&mut self) {
-        self.cancel_timer();
-        if let Ok(mut child) = self.child.lock() {
-            let _ = stop_process(&mut child);
+        if let Some(timer) = self.timer.take() {
+            self.cancelled.store(true, Ordering::SeqCst);
+            if timer.join().is_err() {
+                eprintln!("worker timeout watcher panicked during cleanup");
+            }
+        }
+
+        let mut child = self.child.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Err(error) = stop_process(&mut child) {
+            eprintln!("cannot stop worker during cleanup: {error:#}");
         }
     }
 }
@@ -590,14 +645,8 @@ fn verify_worker(repo: &Path, ticket: &Ticket, item: &Value) -> Result<(PathBuf,
         commit(&worker, "HEAD")? == text(&item["starting_commit"])?,
         "worker committed or changed HEAD; dispatcher owns Git transfer"
     );
-    let mut changed = git(
-        &worker,
-        &["diff", "HEAD", "--name-only", "--no-renames", "-z"],
-    )?;
-    changed.extend(git(
-        &worker,
-        &["ls-files", "--others", "--exclude-standard", "-z"],
-    )?);
+    let mut changed = git(&worker, &["diff", "HEAD", "--name-only", "--no-renames", "-z"])?;
+    changed.extend(git(&worker, &["ls-files", "--others", "--exclude-standard", "-z"])?);
     let paths: BTreeSet<_> = String::from_utf8(changed)?
         .split('\0')
         .filter(|p| !p.is_empty())
@@ -620,22 +669,11 @@ fn verify_worker(repo: &Path, ticket: &Ticket, item: &Value) -> Result<(PathBuf,
     Ok((worker, paths.into_iter().collect()))
 }
 
-fn run_checks(
-    commands: &[Vec<String>],
-    cwd: &Path,
-    log_path: &Path,
-    timeout: Duration,
-) -> Result<Value> {
+fn run_checks(commands: &[Vec<String>], cwd: &Path, log_path: &Path, timeout: Duration) -> Result<Value> {
     let mut proof = Vec::new();
-    let mut log = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)?;
+    let mut log = OpenOptions::new().create(true).append(true).open(log_path)?;
     for argv in commands {
-        ensure!(
-            !interruption().load(Ordering::SeqCst),
-            "received interruption signal"
-        );
+        ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
         writeln!(log, "\nCHECK {}", serde_json::to_string(argv)?)?;
         log.flush()?;
         let mut child = Command::new(&argv[0])
@@ -665,16 +703,8 @@ fn run_checks(
         let settled = settle_children(&mut child)?;
         let code = status.code().unwrap_or(-1);
         proof.push(json!({"command":argv,"exit_code":code,"log":log_path}));
-        ensure!(
-            status.success(),
-            "check failed ({code}); see {}",
-            log_path.display()
-        );
-        ensure!(
-            settled,
-            "check left live child processes; see {}",
-            log_path.display()
-        );
+        ensure!(status.success(), "check failed ({code}); see {}", log_path.display());
+        ensure!(settled, "check left live child processes; see {}", log_path.display());
     }
 
     Ok(json!(proof))
@@ -686,18 +716,11 @@ fn merge_matches(repo: &Path, item: &Value) -> Result<bool> {
     Ok(parents == [text(&item["merge_base"])?, text(&item["result_commit"])?])
 }
 
-fn integrate(
-    repo: &Path,
-    graph: &Graph,
-    id: &str,
-    state: &mut State,
-    path: &Path,
-    timeout: Duration,
-) -> Result<()> {
+fn integrate(repo: &Path, graph: &Graph, id: &str, state: &mut State, path: &Path, timeout: Duration) -> Result<()> {
     if state.tasks[id]["status"] == "validated" {
         verify_integration(repo, graph, state)?;
-        state.tasks.get_mut(id).unwrap()["status"] = json!("merging");
-        state.tasks.get_mut(id).unwrap()["merge_base"] = json!(state.integration_head);
+        task_state_mut(state, id)?["status"] = json!("merging");
+        task_state_mut(state, id)?["merge_base"] = json!(state.integration_head);
         save_state(path, state)?;
         if git(
             repo,
@@ -712,12 +735,7 @@ fn integrate(
         {
             let merge_head = git_text(
                 repo,
-                &[
-                    "rev-parse",
-                    "--path-format=absolute",
-                    "--git-path",
-                    "MERGE_HEAD",
-                ],
+                &["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"],
             )?;
             if Path::new(&merge_head).exists() {
                 git(repo, &["merge", "--abort"])?;
@@ -733,8 +751,8 @@ fn integrate(
             "cannot reconcile interrupted merge; inspect Git before resuming"
         );
         let head = commit(repo, "HEAD")?;
-        state.tasks.get_mut(id).unwrap()["status"] = json!("checking");
-        state.tasks.get_mut(id).unwrap()["integration_commit"] = json!(head);
+        task_state_mut(state, id)?["status"] = json!("checking");
+        task_state_mut(state, id)?["integration_commit"] = json!(head);
         state.integration_head = head;
         save_state(path, state)?;
     }
@@ -744,12 +762,15 @@ fn integrate(
         let proof = run_checks(
             &graph.checks,
             repo,
-            &path.parent().unwrap().join("integration.log"),
+            &path
+                .parent()
+                .context("dispatch state has no parent")?
+                .join("integration.log"),
             timeout,
         )?;
         verify_integration(repo, graph, state)?;
-        state.tasks.get_mut(id).unwrap()["status"] = json!("integrated");
-        state.tasks.get_mut(id).unwrap()["integration_checks"] = proof;
+        task_state_mut(state, id)?["status"] = json!("integrated");
+        task_state_mut(state, id)?["integration_checks"] = proof;
         save_state(path, state)?;
         println!(
             "{}",
@@ -770,359 +791,475 @@ struct Execution<'a> {
     accept_head: Option<&'a str>,
 }
 
+struct RunState {
+    state_path: PathBuf,
+    state: State,
+    active: BTreeMap<String, Worker>,
+    current: Option<String>,
+}
+
+impl RunState {
+    fn load(repo: &Path, graph: &Graph, directory: &Path) -> Result<Self> {
+        let state_path = directory.join("state.json");
+        let state = load_state(&state_path, graph, commit(repo, "HEAD")?)?;
+        Ok(Self {
+            state_path,
+            state,
+            active: BTreeMap::new(),
+            current: None,
+        })
+    }
+}
+
 impl Execution<'_> {
     fn execute(&self, directory: &Path) -> Result<()> {
-        let (repo, graph) = (self.repo, self.graph);
-        let state_path = directory.join("state.json");
-        let mut state = load_state(&state_path, graph, commit(repo, "HEAD")?)?;
-        let mut active: BTreeMap<String, Worker> = BTreeMap::new();
-        let mut current: Option<String> = None;
-        let result = (|| -> Result<()> {
-            for id in graph.tickets.keys() {
-                if state.tasks[id]["status"] == "merging" {
-                    current = Some(id.clone());
-                    if commit(repo, "HEAD")? == text(&state.tasks[id]["merge_base"])? {
-                        state.tasks.get_mut(id).unwrap()["status"] = json!("validated");
-                    } else {
-                        integrate(repo, graph, id, &mut state, &state_path, self.check_timeout)?;
-                    }
-                }
-            }
-
-            current = None;
-            for item in state.tasks.values() {
-                if matches!(item["status"].as_str(), Some("running" | "blocked"))
-                    && let Some(pid) = item["pid"].as_u64()
-                {
-                    ensure!(
-                        !process_alive(pid as u32)?,
-                        "a previous worker group is still live; stop it before resuming"
-                    );
-                }
-            }
-
-            let head = commit(repo, "HEAD")?;
-            if head != state.integration_head {
-                ensure!(
-                    self.accept_head
-                        .is_some_and(|reference| commit(repo, reference)
-                            .is_ok_and(|accepted| accepted == head))
-                        && ancestor(repo, &state.integration_head, &head)?,
-                    "integration HEAD drifted; inspect and explicitly --accept-head <commit>"
-                );
-                state.adopted_heads.push(
-                    json!({"previous":state.integration_head,"accepted":head,"status":"checking"}),
-                );
-                state.integration_head = head;
-            }
-
-            for id in self.retry {
-                let item = state
-                    .tasks
-                    .get_mut(id)
-                    .context("--retry requires a blocked or interrupted running ticket")?;
-                ensure!(
-                    matches!(item["status"].as_str(), Some("blocked" | "running")),
-                    "--retry requires a blocked or interrupted running ticket"
-                );
-                let mut attempt = item.clone();
-                attempt
-                    .as_object_mut()
-                    .context("invalid task state")?
-                    .remove("history");
-                item["history"]
-                    .as_array_mut()
-                    .context("invalid attempt history")?
-                    .push(attempt);
-                if item.get("integration_commit").is_some() {
-                    item["status"] = json!("checking");
-                } else {
-                    let history = item["history"].take();
-                    *item = json!({"status":"pending","history":history});
-                }
-            }
-
-            ensure!(
-                !state
-                    .tasks
-                    .values()
-                    .any(|t| matches!(t["status"].as_str(), Some("blocked" | "running"))),
-                "blocked or interrupted tickets require inspection and explicit --retry <id>"
-            );
-            save_state(&state_path, &state)?;
-            for index in 0..state.adopted_heads.len() {
-                if state.adopted_heads[index]["status"] == "checking" {
-                    verify_integration(repo, graph, &state)?;
-                    let proof = run_checks(
-                        &graph.checks,
-                        repo,
-                        &directory.join("integration.log"),
-                        self.check_timeout,
-                    )?;
-                    verify_integration(repo, graph, &state)?;
-                    state.adopted_heads[index]["status"] = json!("verified");
-                    state.adopted_heads[index]["checks"] = proof;
-                    save_state(&state_path, &state)?;
-                }
-            }
-
-            for id in graph.tickets.keys() {
-                if matches!(
-                    state.tasks[id]["status"].as_str(),
-                    Some("validated" | "checking")
-                ) {
-                    current = Some(id.clone());
-                    integrate(repo, graph, id, &mut state, &state_path, self.check_timeout)?;
-                }
-            }
-
-            while state
-                .tasks
-                .values()
-                .any(|item| item["status"] != "integrated")
-            {
-                ensure!(
-                    !interruption().load(Ordering::SeqCst),
-                    "received interruption signal"
-                );
-                for (id, worker) in &active {
-                    current = Some(id.clone());
-                    ensure!(
-                        !worker.expired.load(Ordering::SeqCst),
-                        "worker timed out: {id}"
-                    );
-                    if let Some(status) = worker.child.lock().unwrap().try_wait()? {
-                        ensure!(
-                            !worker.expired.load(Ordering::SeqCst),
-                            "worker timed out: {id}"
-                        );
-                        ensure!(
-                            status.success(),
-                            "worker failed ({}); see {}",
-                            status.code().unwrap_or(-1),
-                            text(&state.tasks[id]["worker_log"])?
-                        );
-                    }
-                }
-
-                for id in frontier(graph, &state) {
-                    if active.len() >= self.jobs {
-                        break;
-                    }
-                    let ticket = &graph.tickets[&id];
-                    if active.keys().any(|other| {
-                        ticket.paths.iter().any(|a| {
-                            graph.tickets[other].paths.iter().any(|b| {
-                                a == b
-                                    || a.starts_with(&format!("{b}/"))
-                                    || b.starts_with(&format!("{a}/"))
-                            })
-                        })
-                    }) {
-                        continue;
-                    }
-
-                    current = Some(id.clone());
-                    verify_integration(repo, graph, &state)?;
-                    let attempt = state.tasks[&id]["history"].as_array().unwrap().len() + 1;
-                    let hash = format!(
-                        "{:x}",
-                        Sha256::digest(graph.path.as_os_str().as_encoded_bytes())
-                    );
-                    let worker_root =
-                        repo.parent()
-                            .context("repository has no parent")?
-                            .join(format!(
-                                ".{}-dispatch-{}",
-                                repo.file_name()
-                                    .context("repository has no name")?
-                                    .to_string_lossy(),
-                                &hash[..12]
-                            ));
-                    let worker_path = worker_root.join(format!("{id}-{attempt}"));
-                    let branch = format!(
-                        "{}-{id}-{attempt}",
-                        graph.branch.trim_start_matches("refs/heads/")
-                    );
-                    let head = commit(repo, "HEAD")?;
-                    let item = state.tasks.get_mut(&id).unwrap();
-                    item["status"] = json!("running");
-                    item["starting_commit"] = json!(head);
-                    item["worker_path"] = json!(worker_path);
-                    item["worker_branch"] = json!(format!("refs/heads/{branch}"));
-                    item["pid"] = Value::Null;
-                    save_state(&state_path, &state)?;
-                    git(
-                        repo,
-                        &[
-                            "worktree",
-                            "add",
-                            "-b",
-                            &branch,
-                            worker_path.to_str().context("non-UTF8 worker path")?,
-                            &head,
-                        ],
-                    )?;
-                    let packet = worker_path
-                        .join(".agent/work")
-                        .join(graph.path.parent().unwrap().file_name().unwrap())
-                        .join("task.md");
-                    git(
-                        &worker_path,
-                        &[
-                            "check-ignore",
-                            "-q",
-                            "--",
-                            packet.to_str().context("non-UTF8 packet path")?,
-                        ],
-                    )?;
-                    fs::create_dir_all(packet.parent().unwrap())?;
-                    fs::write(
-                        &packet,
-                        format!(
-                            "Implement only ticket {id}: {}\nWorktree: {}\nStarting commit: {head}\nOwned paths: {}\nRead actual source and repository instructions. Keep all edits in this worktree.\nDo not commit, switch branches, integrate other work, publish, or spawn another orchestration team.\nThe dispatcher owns commits, checks, and integration. Report remaining risks.\n\n{}",
-                            ticket.deliverable,
-                            worker_path.display(),
-                            serde_json::to_string(&ticket.paths)?,
-                            ticket.brief
-                        ),
-                    )?;
-                    let log_path = directory.join(format!("{id}-{attempt}.log"));
-                    let log = File::create(&log_path)?;
-                    let mut cmd = Command::new(&ticket.worker[0]);
-                    cmd.args(&ticket.worker[1..])
-                        .current_dir(&worker_path)
-                        .stdin(File::open(&packet)?)
-                        .stdout(log.try_clone()?)
-                        .stderr(log);
-                    let worker = Worker::spawn(cmd, self.worker_timeout)?;
-                    let pid = worker.child.lock().unwrap().id();
-                    active.insert(id.clone(), worker);
-                    let item = state.tasks.get_mut(&id).unwrap();
-                    item["pid"] = json!(pid);
-                    item["worker_command"] = json!(ticket.worker);
-                    item["worker_log"] = json!(log_path);
-                    save_state(&state_path, &state)?;
-                    println!(
-                        "{}",
-                        json!({"event":"started","task":id,"worktree":worker_path})
-                    );
-                }
-
-                current = None;
-                ensure!(
-                    !active.is_empty(),
-                    "no runnable tickets; inspect graph and state"
-                );
-                let mut completed = Vec::new();
-                for (id, worker) in &active {
-                    current = Some(id.clone());
-                    ensure!(
-                        !worker.expired.load(Ordering::SeqCst),
-                        "worker timed out: {id}"
-                    );
-                    if worker.child.lock().unwrap().try_wait()?.is_some() {
-                        completed.push(id.clone());
-                    }
-                }
-
-                current = None;
-                if completed.is_empty() {
-                    thread::sleep(Duration::from_millis(50));
-                    continue;
-                }
-
-                for id in completed {
-                    current = Some(id.clone());
-                    let worker = active.get_mut(&id).unwrap();
-                    worker.cancel_timer();
-                    let mut child = worker.child.lock().unwrap();
-                    let settled = settle_children(&mut child)?;
-                    ensure!(
-                        !worker.expired.load(Ordering::SeqCst),
-                        "worker timed out: {id}"
-                    );
-                    let status = child.wait()?;
-                    ensure!(
-                        status.success(),
-                        "worker failed ({}); see {}",
-                        status.code().unwrap_or(-1),
-                        text(&state.tasks[&id]["worker_log"])?
-                    );
-                    ensure!(settled, "worker left live child processes");
-                    drop(child);
-                    active.remove(&id);
-                    state.tasks.get_mut(&id).unwrap()["expected_integration_head"] =
-                        json!(state.integration_head);
-                    let ticket = &graph.tickets[&id];
-                    let (worker_path, _) = verify_worker(repo, ticket, &state.tasks[&id])?;
-                    let proof = run_checks(
-                        &ticket.checks,
-                        &worker_path,
-                        Path::new(text(&state.tasks[&id]["worker_log"])?),
-                        self.check_timeout,
-                    )?;
-                    let (_, paths) = verify_worker(repo, ticket, &state.tasks[&id])?;
-                    ensure!(
-                        !paths.is_empty(),
-                        "ticket produced no changes; inspect acceptance and task scope"
-                    );
-                    git(&worker_path, &["add", "--all"])?;
-                    git(&worker_path, &["commit", "-m", &ticket.message])?;
-                    let item = state.tasks.get_mut(&id).unwrap();
-                    item["status"] = json!("validated");
-                    item["result_commit"] = json!(commit(&worker_path, "HEAD")?);
-                    item["worker_checks"] = proof;
-                    save_state(&state_path, &state)?;
-                    integrate(
-                        repo,
-                        graph,
-                        &id,
-                        &mut state,
-                        &state_path,
-                        self.check_timeout,
-                    )?;
-                }
-            }
-
-            println!(
-                "{}",
-                json!({"event":"complete","integration_head":state.integration_head})
-            );
-            Ok(())
-        })();
+        let mut run = RunState::load(self.repo, self.graph, directory)?;
+        let result = self.run(&mut run, directory);
         if let Err(error) = &result {
-            if let Some(id) = &current
-                && state.tasks[id]["status"] != "integrated"
-            {
-                let completed_merge = state.tasks[id]["status"] == "merging"
-                    && merge_matches(repo, &state.tasks[id]).unwrap_or(false);
-                let item = state.tasks.get_mut(id).unwrap();
-                if !completed_merge {
-                    item["status"] = json!("blocked");
-                }
-
-                item["reason"] = json!(format!("{error:#}"));
-            }
-
-            for (id, worker) in &mut active {
-                worker.cancel_timer();
-                stop_process(&mut worker.child.lock().unwrap())?;
-                let item = state.tasks.get_mut(id).unwrap();
-                item["status"] = json!("blocked");
-                if current.as_ref() != Some(id) {
-                    item["reason"] = json!("run stopped; inspect retained work before retry");
-                }
-            }
-
-            save_state(&state_path, &state)?;
+            self.preserve_failed_run(&mut run, error);
         }
 
         result
     }
+
+    fn run(&self, run: &mut RunState, directory: &Path) -> Result<()> {
+        self.reconcile_merges(run)?;
+        self.prepare_run(run)?;
+        self.verify_adopted_heads(run, directory)?;
+        self.integrate_validated(run)?;
+        self.execute_tickets(run, directory)?;
+        println!(
+            "{}",
+            json!({"event":"complete","integration_head":run.state.integration_head})
+        );
+        Ok(())
+    }
+
+    fn reconcile_merges(&self, run: &mut RunState) -> Result<()> {
+        let merging: Vec<_> = self
+            .graph
+            .tickets
+            .keys()
+            .filter(|id| run.state.tasks[*id]["status"] == "merging")
+            .cloned()
+            .collect();
+        for id in merging {
+            run.current = Some(id.clone());
+            if commit(self.repo, "HEAD")? == text(&task_state(&run.state, &id)?["merge_base"])? {
+                task_state_mut(&mut run.state, &id)?["status"] = json!("validated");
+            } else {
+                integrate(
+                    self.repo,
+                    self.graph,
+                    &id,
+                    &mut run.state,
+                    &run.state_path,
+                    self.check_timeout,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn prepare_run(&self, run: &mut RunState) -> Result<()> {
+        run.current = None;
+        for item in run.state.tasks.values() {
+            if matches!(item["status"].as_str(), Some("running" | "blocked"))
+                && let Some(pid) = item["pid"].as_u64()
+            {
+                ensure!(
+                    !process_alive(pid as u32)?,
+                    "a previous worker group is still live; stop it before resuming"
+                );
+            }
+        }
+
+        let head = commit(self.repo, "HEAD")?;
+        if head != run.state.integration_head {
+            ensure!(
+                self.accept_head
+                    .is_some_and(|reference| commit(self.repo, reference).is_ok_and(|accepted| accepted == head))
+                    && ancestor(self.repo, &run.state.integration_head, &head)?,
+                "integration HEAD drifted; inspect and explicitly --accept-head <commit>"
+            );
+            run.state
+                .adopted_heads
+                .push(json!({"previous":run.state.integration_head,"accepted":head,"status":"checking"}));
+            run.state.integration_head = head;
+        }
+
+        for id in self.retry {
+            let item = task_state_mut(&mut run.state, id)
+                .context("--retry requires a blocked or interrupted running ticket")?;
+            ensure!(
+                matches!(item["status"].as_str(), Some("blocked" | "running")),
+                "--retry requires a blocked or interrupted running ticket"
+            );
+            let mut attempt = item.clone();
+            attempt.as_object_mut().context("invalid task state")?.remove("history");
+            item["history"]
+                .as_array_mut()
+                .context("invalid attempt history")?
+                .push(attempt);
+            if item.get("integration_commit").is_some() {
+                item["status"] = json!("checking");
+            } else {
+                let history = item["history"].take();
+                *item = json!({"status":"pending","history":history});
+            }
+        }
+
+        ensure!(
+            !run.state
+                .tasks
+                .values()
+                .any(|item| matches!(item["status"].as_str(), Some("blocked" | "running"))),
+            "blocked or interrupted tickets require inspection and explicit --retry <id>"
+        );
+        save_state(&run.state_path, &run.state)
+    }
+
+    fn verify_adopted_heads(&self, run: &mut RunState, directory: &Path) -> Result<()> {
+        for index in 0..run.state.adopted_heads.len() {
+            if run.state.adopted_heads[index]["status"] != "checking" {
+                continue;
+            }
+
+            verify_integration(self.repo, self.graph, &run.state)?;
+            let proof = run_checks(
+                &self.graph.checks,
+                self.repo,
+                &directory.join("integration.log"),
+                self.check_timeout,
+            )?;
+            verify_integration(self.repo, self.graph, &run.state)?;
+            run.state.adopted_heads[index]["status"] = json!("verified");
+            run.state.adopted_heads[index]["checks"] = proof;
+            save_state(&run.state_path, &run.state)?;
+        }
+
+        Ok(())
+    }
+
+    fn integrate_validated(&self, run: &mut RunState) -> Result<()> {
+        for id in self.graph.tickets.keys() {
+            if !matches!(
+                task_state(&run.state, id)?["status"].as_str(),
+                Some("validated" | "checking")
+            ) {
+                continue;
+            }
+
+            run.current = Some(id.clone());
+            integrate(
+                self.repo,
+                self.graph,
+                id,
+                &mut run.state,
+                &run.state_path,
+                self.check_timeout,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn execute_tickets(&self, run: &mut RunState, directory: &Path) -> Result<()> {
+        while run.state.tasks.values().any(|item| item["status"] != "integrated") {
+            ensure!(!interruption().load(Ordering::SeqCst), "received interruption signal");
+            self.check_active_workers(run)?;
+            self.start_ready_workers(run, directory)?;
+            ensure!(!run.active.is_empty(), "no runnable tickets; inspect graph and state");
+            let completed = self.completed_workers(run)?;
+            if completed.is_empty() {
+                run.current = None;
+                thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+
+            for id in completed {
+                run.current = Some(id.clone());
+                self.finish_worker(run, &id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_active_workers(&self, run: &mut RunState) -> Result<()> {
+        for (id, worker) in &run.active {
+            run.current = Some(id.clone());
+            worker.check_watcher()?;
+            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            let status = worker.child_process()?.try_wait()?;
+            let Some(status) = status else {
+                continue;
+            };
+            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            ensure!(
+                status.success(),
+                "worker failed ({}); see {}",
+                status.code().unwrap_or(-1),
+                text(&task_state(&run.state, id)?["worker_log"])?
+            );
+        }
+
+        Ok(())
+    }
+
+    fn start_ready_workers(&self, run: &mut RunState, directory: &Path) -> Result<()> {
+        for id in frontier(self.graph, &run.state) {
+            if run.active.len() >= self.jobs {
+                break;
+            }
+            if worker_paths_overlap(self.graph, &id, &run.active) {
+                continue;
+            }
+
+            run.current = Some(id.clone());
+            verify_integration(self.repo, self.graph, &run.state)?;
+            let worker = self.start_worker(run, &id, directory)?;
+            run.active.insert(id, worker);
+        }
+
+        Ok(())
+    }
+
+    fn start_worker(&self, run: &mut RunState, id: &str, directory: &Path) -> Result<Worker> {
+        let ticket = self
+            .graph
+            .tickets
+            .get(id)
+            .context("graph is missing a runnable ticket")?;
+        let history = task_state(&run.state, id)?["history"]
+            .as_array()
+            .context("task history is invalid")?;
+        let attempt = history.len() + 1;
+        let hash = format!("{:x}", Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes()));
+        let worker_root = self.repo.parent().context("repository has no parent")?.join(format!(
+            ".{}-dispatch-{}",
+            self.repo
+                .file_name()
+                .context("repository has no name")?
+                .to_string_lossy(),
+            &hash[..12]
+        ));
+        let worker_path = worker_root.join(format!("{id}-{attempt}"));
+        let branch = format!("{}-{id}-{attempt}", self.graph.branch.trim_start_matches("refs/heads/"));
+        let head = commit(self.repo, "HEAD")?;
+        let item = task_state_mut(&mut run.state, id)?;
+        item["status"] = json!("running");
+        item["starting_commit"] = json!(head);
+        item["worker_path"] = json!(worker_path);
+        item["worker_branch"] = json!(format!("refs/heads/{branch}"));
+        item["pid"] = Value::Null;
+        save_state(&run.state_path, &run.state)?;
+        git(
+            self.repo,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                &branch,
+                worker_path.to_str().context("non-UTF8 worker path")?,
+                &head,
+            ],
+        )?;
+        let packet = write_worker_packet(self.graph, &worker_path, id, &head, ticket)?;
+        let log_path = directory.join(format!("{id}-{attempt}.log"));
+        let log = File::create(&log_path)?;
+        let mut command = Command::new(&ticket.worker[0]);
+        command
+            .args(&ticket.worker[1..])
+            .current_dir(&worker_path)
+            .stdin(File::open(&packet)?)
+            .stdout(log.try_clone()?)
+            .stderr(log);
+        let worker = Worker::spawn(command, self.worker_timeout)?;
+        let pid = worker.child_process()?.id();
+        let item = task_state_mut(&mut run.state, id)?;
+        item["pid"] = json!(pid);
+        item["worker_command"] = json!(ticket.worker);
+        item["worker_log"] = json!(log_path);
+        save_state(&run.state_path, &run.state)?;
+        println!("{}", json!({"event":"started","task":id,"worktree":worker_path}));
+        Ok(worker)
+    }
+
+    fn completed_workers(&self, run: &mut RunState) -> Result<Vec<String>> {
+        let mut completed = Vec::new();
+        for (id, worker) in &run.active {
+            run.current = Some(id.clone());
+            worker.check_watcher()?;
+            ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+            if worker.child_process()?.try_wait()?.is_some() {
+                completed.push(id.clone());
+            }
+        }
+
+        Ok(completed)
+    }
+
+    fn finish_worker(&self, run: &mut RunState, id: &str) -> Result<()> {
+        let worker = run.active.get_mut(id).context("completed worker is missing")?;
+        worker.cancel_timer()?;
+        let mut child = worker.child_process()?;
+        let settled = settle_children(&mut child)?;
+        ensure!(!worker.expired.load(Ordering::SeqCst), "worker timed out: {id}");
+        let status = child.wait()?;
+        ensure!(
+            status.success(),
+            "worker failed ({}); see {}",
+            status.code().unwrap_or(-1),
+            text(&task_state(&run.state, id)?["worker_log"])?
+        );
+        ensure!(settled, "worker left live child processes");
+        drop(child);
+        run.active.remove(id);
+        task_state_mut(&mut run.state, id)?["expected_integration_head"] = json!(run.state.integration_head);
+        let ticket = self
+            .graph
+            .tickets
+            .get(id)
+            .context("graph is missing a completed ticket")?;
+        let item = task_state(&run.state, id)?;
+        let (worker_path, _) = verify_worker(self.repo, ticket, item)?;
+        let proof = run_checks(
+            &ticket.checks,
+            &worker_path,
+            Path::new(text(&task_state(&run.state, id)?["worker_log"])?),
+            self.check_timeout,
+        )?;
+        let (_, paths) = verify_worker(self.repo, ticket, task_state(&run.state, id)?)?;
+        ensure!(
+            !paths.is_empty(),
+            "ticket produced no changes; inspect acceptance and task scope"
+        );
+        git(&worker_path, &["add", "--all"])?;
+        git(&worker_path, &["commit", "-m", &ticket.message])?;
+        let result_commit = commit(&worker_path, "HEAD")?;
+        let item = task_state_mut(&mut run.state, id)?;
+        item["status"] = json!("validated");
+        item["result_commit"] = json!(result_commit);
+        item["worker_checks"] = proof;
+        save_state(&run.state_path, &run.state)?;
+        integrate(
+            self.repo,
+            self.graph,
+            id,
+            &mut run.state,
+            &run.state_path,
+            self.check_timeout,
+        )
+    }
+
+    fn preserve_failed_run(&self, run: &mut RunState, error: &anyhow::Error) {
+        let mut cleanup_errors = Vec::new();
+        if let Some(id) = &run.current {
+            let current_status = match task_state(&run.state, id) {
+                Ok(item) => item["status"].as_str().map(str::to_owned),
+                Err(error) => {
+                    cleanup_errors.push(format!("cannot inspect current ticket {id}: {error:#}"));
+                    None
+                }
+            };
+            if let Some(status) = current_status
+                && status != "integrated"
+            {
+                let completed_merge = status == "merging"
+                    && task_state(&run.state, id).is_ok_and(|item| matches!(merge_matches(self.repo, item), Ok(true)));
+                let next_status = if completed_merge { "merging" } else { "blocked" };
+                match task_state_mut(&mut run.state, id) {
+                    Ok(item) => {
+                        item["status"] = json!(next_status);
+                        item["reason"] = json!(format!("{error:#}"));
+                    }
+                    Err(error) => cleanup_errors.push(format!("cannot block current ticket {id}: {error:#}")),
+                }
+            }
+        }
+
+        for (id, worker) in &mut run.active {
+            if let Err(error) = worker.cancel_timer() {
+                cleanup_errors.push(format!("cannot stop timeout watcher for {id}: {error:#}"));
+            }
+            match worker.child_process() {
+                Ok(mut child) => {
+                    if let Err(error) = stop_process(&mut child) {
+                        cleanup_errors.push(format!("cannot stop worker {id}: {error:#}"));
+                    }
+                }
+                Err(error) => cleanup_errors.push(format!("cannot access worker {id}: {error:#}")),
+            }
+            match task_state_mut(&mut run.state, id) {
+                Ok(item) => {
+                    item["status"] = json!("blocked");
+                    if run.current.as_ref() != Some(id) {
+                        item["reason"] = json!("run stopped; inspect retained work before retry");
+                    }
+                }
+                Err(error) => cleanup_errors.push(format!("cannot block active ticket {id}: {error:#}")),
+            }
+        }
+
+        if let Err(error) = save_state(&run.state_path, &run.state) {
+            cleanup_errors.push(format!("cannot save failure state: {error:#}"));
+        }
+        for error in cleanup_errors {
+            eprintln!("ERROR: failure cleanup: {error}");
+        }
+    }
+}
+
+fn write_worker_packet(graph: &Graph, worker_path: &Path, id: &str, head: &str, ticket: &Ticket) -> Result<PathBuf> {
+    let work_item = graph
+        .path
+        .parent()
+        .context("graph has no parent")?
+        .file_name()
+        .context("graph parent has no name")?;
+    let packet = worker_path.join(".agent/work").join(work_item).join("task.md");
+    git(
+        worker_path,
+        &[
+            "check-ignore",
+            "-q",
+            "--",
+            packet.to_str().context("non-UTF8 packet path")?,
+        ],
+    )?;
+    fs::create_dir_all(packet.parent().context("task packet has no parent")?)?;
+    fs::write(
+        &packet,
+        format!(
+            "Implement only ticket {id}: {}\nWorktree: {}\nStarting commit: {head}\nOwned paths: {}\nRead actual source and repository instructions. Keep all edits in this worktree.\nDo not commit, switch branches, integrate other work, publish, or spawn another orchestration team.\nThe dispatcher owns commits, checks, and integration. Report remaining risks.\n\n{}",
+            ticket.deliverable,
+            worker_path.display(),
+            serde_json::to_string(&ticket.paths)?,
+            ticket.brief
+        ),
+    )?;
+    Ok(packet)
+}
+
+fn worker_paths_overlap(graph: &Graph, id: &str, active: &BTreeMap<String, Worker>) -> bool {
+    let ticket = &graph.tickets[id];
+    active.keys().any(|other| {
+        ticket.paths.iter().any(|path| {
+            graph.tickets[other].paths.iter().any(|owned| {
+                path == owned || path.starts_with(&format!("{owned}/")) || owned.starts_with(&format!("{path}/"))
+            })
+        })
+    })
 }
 
 /// Run the dispatcher with argv including the executable name.
+///
+/// # Errors
+///
+/// Returns an error when arguments, the repository, the graph, persisted state,
+/// or any worker or integration operation is invalid or fails.
 pub fn run(args: Vec<OsString>) -> Result<()> {
     let args = match Arguments::try_parse_from(args) {
         Ok(args) => args,
@@ -1143,7 +1280,7 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
         "--repo must name the integration worktree root"
     );
     let graph = load_graph(&repo, &args.graph)?;
-    let directory = graph.path.parent().unwrap().join("dispatch");
+    let directory = graph.path.parent().context("graph has no parent")?.join("dispatch");
     match args.command {
         Action::Status => {
             let head = commit(&repo, "HEAD")?;
@@ -1167,10 +1304,8 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                         .all(|n| n.is_finite() && *n > 0.0),
                 "jobs and timeouts must be positive"
             );
-            let worker_timeout =
-                Duration::try_from_secs_f64(worker_timeout).context("invalid worker timeout")?;
-            let check_timeout =
-                Duration::try_from_secs_f64(check_timeout).context("invalid check timeout")?;
+            let worker_timeout = Duration::try_from_secs_f64(worker_timeout).context("invalid worker timeout")?;
+            let check_timeout = Duration::try_from_secs_f64(check_timeout).context("invalid check timeout")?;
             ensure!(
                 git(&repo, &["status", "--porcelain", "--untracked-files=all"])?.is_empty(),
                 "integration worktree must be clean before run"
@@ -1184,10 +1319,8 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                 .open(repo.join(".agent/work/.dispatch.lock"))?;
             FileExt::try_lock_exclusive(&lock).context("dispatcher is already running")?;
             interruption().store(false, Ordering::SeqCst);
-            let term =
-                signal_hook::flag::register(signal_hook::consts::SIGTERM, interruption().clone())?;
-            let int =
-                signal_hook::flag::register(signal_hook::consts::SIGINT, interruption().clone())?;
+            let term = signal_hook::flag::register(signal_hook::consts::SIGTERM, interruption().clone())?;
+            let int = signal_hook::flag::register(signal_hook::consts::SIGINT, interruption().clone())?;
             let result = Execution {
                 repo: &repo,
                 graph: &graph,
@@ -1210,8 +1343,10 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::fingerprint_json;
+    use super::{Execution, Graph, RunState, State, Worker, fingerprint_json, process_alive};
+    use anyhow::{Result, anyhow, ensure};
     use serde_json::json;
+    use std::{collections::BTreeMap, fs, process::Command, time::Duration};
 
     #[test]
     fn legacy_fingerprints_preserve_sorted_ascii_json() {
@@ -1223,5 +1358,62 @@ mod tests {
             fingerprint_json(&json!([1e-7, 1e16, 0.0001, 10.0, -0.0])).unwrap(),
             "[1e-07, 1e+16, 0.0001, 10.0, -0.0]"
         );
+    }
+
+    #[test]
+    fn failure_cleanup_persists_primary_error_when_watcher_fails() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let graph = Graph {
+            path: root.path().join("tickets.json"),
+            branch: "refs/heads/main".to_owned(),
+            checks: Vec::new(),
+            tickets: BTreeMap::new(),
+            digest: "graph".to_owned(),
+        };
+        let mut command = Command::new("sleep");
+        command.arg("30");
+        let worker = Worker::spawn(command, Duration::from_secs(60))?;
+        let pid = worker.child_process()?.id();
+        *worker
+            .watch_error
+            .lock()
+            .map_err(|_| anyhow!("worker timeout watcher state poisoned"))? =
+            Some("simulated watcher failure".to_owned());
+        let mut tasks = BTreeMap::new();
+        tasks.insert("ticket".to_owned(), json!({"status":"running", "history":[]}));
+        let mut active = BTreeMap::new();
+        active.insert("ticket".to_owned(), worker);
+        let state_path = root.path().join("state.json");
+        let mut run = RunState {
+            state_path: state_path.clone(),
+            state: State {
+                version: 1,
+                graph_digest: "graph".to_owned(),
+                integration_head: "head".to_owned(),
+                tasks,
+                adopted_heads: Vec::new(),
+            },
+            active,
+            current: Some("ticket".to_owned()),
+        };
+        let execution = Execution {
+            repo: root.path(),
+            graph: &graph,
+            jobs: 1,
+            worker_timeout: Duration::from_secs(60),
+            check_timeout: Duration::from_secs(60),
+            retry: &[],
+            accept_head: None,
+        };
+
+        execution.preserve_failed_run(&mut run, &anyhow!("primary failure"));
+
+        ensure!(run.state.tasks["ticket"]["status"] == "blocked");
+        ensure!(run.state.tasks["ticket"]["reason"] == "primary failure");
+        let saved: State = serde_json::from_slice(&fs::read(state_path)?)?;
+        ensure!(saved.tasks["ticket"]["status"] == "blocked");
+        ensure!(saved.tasks["ticket"]["reason"] == "primary failure");
+        ensure!(!process_alive(pid)?);
+        Ok(())
     }
 }

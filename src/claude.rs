@@ -12,7 +12,16 @@ use std::{
     path::Path,
 };
 
-pub fn install_claude(
+struct ClaudePlan {
+    stage: tempfile::TempDir,
+    sources: BTreeMap<String, std::path::PathBuf>,
+    owned: BTreeSet<String>,
+    names: BTreeSet<String>,
+    changed: Vec<String>,
+    removed: Vec<String>,
+}
+
+pub(crate) fn install_claude(
     root: &Path,
     manifest: &Manifest,
     target: &Path,
@@ -20,6 +29,50 @@ pub fn install_claude(
     out: &mut dyn Write,
 ) -> Result<()> {
     let _lock = sync_lock(root)?;
+    let plan = stage_claude_install(root, manifest, target)?;
+    let owned_path = target.join(".skillctl-owned");
+    for name in plan.changed.iter().filter(|name| plan.owned.contains(*name)) {
+        writeln!(out, "UPDATE {name}")?;
+    }
+    for name in plan.sources.keys().filter(|name| !plan.owned.contains(*name)) {
+        writeln!(out, "ADD {name}")?;
+    }
+    for name in &plan.removed {
+        writeln!(out, "REMOVE {name}")?;
+    }
+
+    if dry_run {
+        writeln!(
+            out,
+            "Would install {} skills into {}",
+            plan.sources.len(),
+            target.display()
+        )?;
+        return Ok(());
+    }
+
+    let union: Vec<_> = plan.owned.union(&plan.names).cloned().collect();
+    fs::write(&owned_path, union.join("\n") + "\n")?;
+    for name in &plan.removed {
+        remove_owned(&target.join(name))?;
+    }
+
+    for name in plan.changed {
+        let destination = target.join(&name);
+        remove_owned(&destination)?;
+        fs::rename(plan.stage.path().join(&name), destination)
+            .with_context(|| format!("cannot install Claude skill {name}"))?;
+    }
+
+    fs::write(
+        &owned_path,
+        plan.names.into_iter().collect::<Vec<_>>().join("\n") + "\n",
+    )?;
+    writeln!(out, "Installed {} skills into {}", plan.sources.len(), target.display())?;
+    Ok(())
+}
+
+fn stage_claude_install(root: &Path, manifest: &Manifest, target: &Path) -> Result<ClaudePlan> {
     let hidden: BTreeSet<_> = manifest
         .dependencies
         .iter()
@@ -46,10 +99,7 @@ pub fn install_claude(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error.into()),
     };
-    let owned: BTreeSet<_> = owned_content
-        .split_whitespace()
-        .map(str::to_owned)
-        .collect();
+    let owned: BTreeSet<_> = owned_content.split_whitespace().map(str::to_owned).collect();
     for name in &owned {
         ensure!(
             !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0']),
@@ -69,9 +119,7 @@ pub fn install_claude(
         }
     }
 
-    let stage = tempfile::Builder::new()
-        .prefix(".skillctl-stage-")
-        .tempdir_in(target)?;
+    let stage = tempfile::Builder::new().prefix(".skillctl-stage-").tempdir_in(target)?;
     let mut changed = Vec::new();
     for (name, source) in &sources {
         let destination = target.join(name);
@@ -89,9 +137,6 @@ pub fn install_claude(
         set_skill_name(&staged, name)?;
         if !trees_equal(&staged, &destination)? {
             changed.push(name.clone());
-            if owned.contains(name) {
-                writeln!(out, "UPDATE {name}")?;
-            }
         }
     }
 
@@ -100,49 +145,15 @@ pub fn install_claude(
         .filter(|name| !sources.contains_key(*name))
         .cloned()
         .collect();
-    for name in sources.keys().filter(|name| !owned.contains(*name)) {
-        writeln!(out, "ADD {name}")?;
-    }
-
-    for name in &removed {
-        writeln!(out, "REMOVE {name}")?;
-    }
-
-    if dry_run {
-        writeln!(
-            out,
-            "Would install {} skills into {}",
-            sources.len(),
-            target.display()
-        )?;
-        return Ok(());
-    }
-
     let names: BTreeSet<_> = sources.keys().cloned().collect();
-    let union: Vec<_> = owned.union(&names).cloned().collect();
-    fs::write(&owned_path, union.join("\n") + "\n")?;
-    for name in &removed {
-        remove_owned(&target.join(name))?;
-    }
-
-    for name in changed {
-        let destination = target.join(&name);
-        remove_owned(&destination)?;
-        fs::rename(stage.path().join(&name), destination)
-            .with_context(|| format!("cannot install Claude skill {name}"))?;
-    }
-
-    fs::write(
-        &owned_path,
-        names.into_iter().collect::<Vec<_>>().join("\n") + "\n",
-    )?;
-    writeln!(
-        out,
-        "Installed {} skills into {}",
-        sources.len(),
-        target.display()
-    )?;
-    Ok(())
+    Ok(ClaudePlan {
+        stage,
+        sources,
+        owned,
+        names,
+        changed,
+        removed,
+    })
 }
 
 fn remove_owned(path: &Path) -> Result<()> {

@@ -1,5 +1,5 @@
 use crate::manifest::Router;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use minijinja::{Environment, UndefinedBehavior};
 use regex::bytes::Regex;
 use serde::Serialize;
@@ -10,15 +10,25 @@ use std::path::Path;
 use std::sync::LazyLock;
 use walkdir::WalkDir;
 
-static FRONTMATTER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?sm-u)\A---\n(.*?)^---[ \t]*$").unwrap());
-static NAME_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m-u)^name:.*$").unwrap());
-static GUIDE_REFERENCE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?-u)[^\s`()<>"']*SKILL\.md"#).unwrap());
-static URL_SCHEME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\A[A-Za-z][A-Za-z0-9+.-]*:").unwrap());
+type CompiledRegex = LazyLock<std::result::Result<Regex, regex::Error>>;
+
+static FRONTMATTER: CompiledRegex = LazyLock::new(|| Regex::new(r"(?sm-u)\A---\n(.*?)^---[ \t]*$"));
+static NAME_LINE: CompiledRegex = LazyLock::new(|| Regex::new(r"(?m-u)^name:.*$"));
+static GUIDE_REFERENCE: CompiledRegex = LazyLock::new(|| Regex::new(r#"(?-u)[^\s`()<>"']*SKILL\.md"#));
+static URL_SCHEME: CompiledRegex = LazyLock::new(|| Regex::new(r"\A[A-Za-z][A-Za-z0-9+.-]*:"));
+
+fn compiled_regex(regex: &'static CompiledRegex, name: &str) -> Result<&'static Regex> {
+    regex
+        .as_ref()
+        .map_err(|error| anyhow!("invalid {name} regular expression: {error}"))
+}
 
 /// Render into memory; callers can only publish a complete document.
+///
+/// # Errors
+///
+/// Returns an error when the named template is missing, has an undefined value,
+/// or cannot render the supplied data.
 pub fn render_template(name: &str, data: Value) -> Result<Vec<u8>> {
     let mut environment = Environment::new();
     environment.set_undefined_behavior(UndefinedBehavior::Strict);
@@ -39,17 +49,15 @@ pub fn render_template(name: &str, data: Value) -> Result<Vec<u8>> {
                 ));
             }
 
-            let encoded = serde_json::to_string(&value).map_err(|error| {
-                minijinja::Error::new(minijinja::ErrorKind::InvalidOperation, error.to_string())
-            })?;
+            let encoded = serde_json::to_string(&value)
+                .map_err(|error| minijinja::Error::new(minijinja::ErrorKind::InvalidOperation, error.to_string()))?;
             let mut ascii = String::new();
             for character in encoded.chars() {
                 if character < '\u{7f}' {
                     ascii.push(character);
                 } else {
-                    use std::fmt::Write;
                     for unit in character.encode_utf16(&mut [0; 2]) {
-                        write!(&mut ascii, "\\u{unit:04x}").unwrap();
+                        ascii.push_str(&format!("\\u{unit:04x}"));
                     }
                 }
             }
@@ -66,14 +74,22 @@ pub fn render_template(name: &str, data: Value) -> Result<Vec<u8>> {
         .into_bytes())
 }
 
+/// Set the generated skill name while preserving the rest of its Markdown bytes.
+///
+/// # Errors
+///
+/// Returns an error when the skill cannot be read, its frontmatter patterns are
+/// invalid, or the updated file cannot be written.
 pub fn set_skill_name(dir: &Path, name: &str) -> Result<()> {
     let path = dir.join("SKILL.md");
     let original = fs::read(&path)?;
     let line = format!("name: {name}");
-    let text = if let Some(captures) = FRONTMATTER.captures(&original) {
-        let header = captures.get(1).unwrap();
-        let header_text = if NAME_LINE.is_match(header.as_bytes()) {
-            NAME_LINE
+    let frontmatter = compiled_regex(&FRONTMATTER, "frontmatter")?;
+    let name_line = compiled_regex(&NAME_LINE, "name line")?;
+    let text = if let Some(captures) = frontmatter.captures(&original) {
+        let header = captures.get(1).context("frontmatter capture is missing")?;
+        let header_text = if name_line.is_match(header.as_bytes()) {
+            name_line
                 .replace(header.as_bytes(), regex::bytes::NoExpand(line.as_bytes()))
                 .into_owned()
         } else {
@@ -103,7 +119,14 @@ struct RouterIndex<'a> {
     entries: &'a [RouterEntry],
 }
 
+/// Generate a router skill and optional bounded index pages.
+///
+/// # Errors
+///
+/// Returns an error when a member guide is missing, frontmatter is invalid,
+/// templates cannot render, or generated pages cannot be written.
 pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<()> {
+    let frontmatter = compiled_regex(&FRONTMATTER, "frontmatter")?;
     let mut names = members.to_owned();
     names.sort();
     let mut entries = Vec::new();
@@ -111,38 +134,32 @@ pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<(
     for name in names {
         let content = fs::read(dir.join("skills").join(&name).join("GUIDE.md"))?;
         let mut summary = String::new();
-        if let Some(frontmatter) = FRONTMATTER.captures(&content)
-            && let Ok(metadata) = serde_yaml_ng::from_slice::<serde_yaml_ng::Value>(&frontmatter[1])
+        if let Some(captures) = frontmatter.captures(&content)
+            && let Ok(metadata) = serde_yaml_ng::from_slice::<serde_yaml_ng::Value>(&captures[1])
             && let Some(description) = metadata.get("description")
         {
             match description {
                 serde_yaml_ng::Value::String(text) => summary = text.clone(),
                 serde_yaml_ng::Value::Bool(true) => summary = "true".to_owned(),
-                serde_yaml_ng::Value::Number(number) if number.as_f64() != Some(0.0) => {
-                    summary = number.to_string()
-                }
+                serde_yaml_ng::Value::Number(number) if number.as_f64() != Some(0.0) => summary = number.to_string(),
                 _ => {}
             }
 
             summary = summary.split_whitespace().collect::<Vec<_>>().join(" ");
         }
 
-        size += format!("- `{name}` (`skills/{name}/GUIDE.md`)")
-            .chars()
-            .count()
-            + summary.chars().count();
+        size += format!("- `{name}` (`skills/{name}/GUIDE.md`)").chars().count() + summary.chars().count();
         entries.push(RouterEntry { name, summary });
     }
 
     let mut indexes = Vec::new();
     if entries.len() > 12 || size > 8000 {
         for group in entries.chunks(12) {
+            let first = group.first().context("router index group is empty")?;
+            let last = group.last().context("router index group is empty")?;
             indexes.push(RouterIndex {
-                filename: format!("{}--{}.md", group[0].name, group[group.len() - 1].name),
-                names: group
-                    .iter()
-                    .map(|entry| format!("`{}`", entry.name))
-                    .collect(),
+                filename: format!("{}--{}.md", first.name, last.name),
+                names: group.iter().map(|entry| format!("`{}`", entry.name)).collect(),
                 entries: group,
             });
         }
@@ -176,7 +193,15 @@ pub fn write_router(dir: &Path, router: &Router, members: &[String]) -> Result<(
     Ok(())
 }
 
+/// Rename skill documents and rewrite relative references to their new paths.
+///
+/// # Errors
+///
+/// Returns an error when a guide collision exists, a file cannot be read or
+/// rewritten, or a skill guide cannot be renamed.
 pub fn route_guides(dir: &Path) -> Result<()> {
+    let guide_reference = compiled_regex(&GUIDE_REFERENCE, "guide reference")?;
+    let url_scheme = compiled_regex(&URL_SCHEME, "URL scheme")?;
     let mut skills = Vec::new();
     let mut documents = Vec::new();
     let mut renamed = HashSet::new();
@@ -186,11 +211,7 @@ pub fn route_guides(dir: &Path) -> Result<()> {
             continue;
         }
 
-        if entry
-            .path()
-            .extension()
-            .is_some_and(|extension| extension == "md")
-        {
+        if entry.path().extension().is_some_and(|extension| extension == "md") {
             documents.push(entry.path().to_owned());
         }
 
@@ -210,29 +231,26 @@ pub fn route_guides(dir: &Path) -> Result<()> {
     }
 
     for document in documents {
+        let parent = document.parent().context("Markdown document has no parent")?;
         let content = fs::read(&document)?;
-        let rewritten =
-            GUIDE_REFERENCE.replace_all(&content, |captures: &regex::bytes::Captures<'_>| {
-                let target = &captures[0];
-                let Ok(target_text) = std::str::from_utf8(target) else {
-                    return target.to_vec();
-                };
-                if Path::new(target_text).is_absolute()
-                    || target_text.contains("://")
-                    || URL_SCHEME.is_match(target)
-                {
-                    return target.to_vec();
-                }
+        let rewritten = guide_reference.replace_all(&content, |captures: &regex::bytes::Captures<'_>| {
+            let target = &captures[0];
+            let Ok(target_text) = std::str::from_utf8(target) else {
+                return target.to_vec();
+            };
+            if Path::new(target_text).is_absolute() || target_text.contains("://") || url_scheme.is_match(target) {
+                return target.to_vec();
+            }
 
-                let resolved = document.parent().unwrap().join(target_text).canonicalize();
-                if resolved.as_ref().is_ok_and(|path| renamed.contains(path)) {
-                    let mut replacement = target[..target.len() - "SKILL.md".len()].to_vec();
-                    replacement.extend_from_slice(b"GUIDE.md");
-                    return replacement;
-                }
+            let resolved = parent.join(target_text).canonicalize();
+            if resolved.as_ref().is_ok_and(|path| renamed.contains(path)) {
+                let mut replacement = target[..target.len() - "SKILL.md".len()].to_vec();
+                replacement.extend_from_slice(b"GUIDE.md");
+                return replacement;
+            }
 
-                target.to_vec()
-            });
+            target.to_vec()
+        });
         if rewritten != content {
             fs::write(&document, rewritten)?;
         }

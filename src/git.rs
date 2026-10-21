@@ -44,17 +44,12 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
         dependency.reference,
         dependency.sparse
     ]))?;
-    let clone = cache
-        .join("repos")
-        .join(format!("{:x}", Sha256::digest(identity)));
+    let clone = cache.join("repos").join(format!("{:x}", Sha256::digest(identity)));
     if clone.exists() {
         let valid = (|| -> Result<bool> {
             let git_dir = run_git(&clone, &["rev-parse", "--absolute-git-dir"])?;
             let origin = run_git(&clone, &["config", "--get", "remote.origin.url"])?;
-            Ok(
-                fs::canonicalize(git_dir)? == fs::canonicalize(clone.join(".git"))?
-                    && origin == dependency.url,
-            )
+            Ok(fs::canonicalize(git_dir)? == fs::canonicalize(clone.join(".git"))? && origin == dependency.url)
         })()
         .unwrap_or(false);
         if !valid {
@@ -99,7 +94,13 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
     })();
     if let Err(error) = result {
         // Failed refreshes never fall back to stale content.
-        let _ = fs::remove_dir_all(&clone);
+        if let Err(cleanup_error) = fs::remove_dir_all(&clone) {
+            return Err(error).context(format!(
+                "{} acquisition failed; cannot remove incomplete cache: {cleanup_error}",
+                dependency.id
+            ));
+        }
+
         return Err(error).with_context(|| format!("{} acquisition failed", dependency.id));
     }
 

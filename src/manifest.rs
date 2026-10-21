@@ -51,7 +51,12 @@ pub struct Router {
     pub description: String,
 }
 
-/// Validate both manifests completely before acquiring repositories or publishing output.
+/// Validate both manifests before acquiring repositories or publishing output.
+///
+/// # Errors
+///
+/// Returns an error when either manifest is invalid, unreadable, or conflicts with
+/// authored skills or another dependency's destinations.
 pub fn load_manifest(root: &Path) -> Result<Manifest> {
     let base = read_manifest_mapping(
         &root.join("deps.yaml"),
@@ -65,8 +70,7 @@ pub fn load_manifest(root: &Path) -> Result<Manifest> {
     let mut manifest = Manifest::default();
     let mut base_ids = HashSet::new();
     for (index, raw) in raw.iter().enumerate() {
-        let dependency =
-            normalize_dependency(raw, &format!("deps.yaml.dependencies[{index}]"), true)?;
+        let dependency = normalize_dependency(raw, &format!("deps.yaml.dependencies[{index}]"), true)?;
         ensure!(
             base_ids.insert(dependency.id.clone()),
             "deps.yaml contains duplicate dependency IDs"
@@ -74,108 +78,132 @@ pub fn load_manifest(root: &Path) -> Result<Manifest> {
         manifest.dependencies.push(dependency);
     }
 
+    apply_overlay(root, &mut manifest, &base_ids)?;
+    collect_authored_roots(root, &mut manifest)?;
+    validate_destinations(&manifest)?;
+    Ok(manifest)
+}
+
+struct OverlaySections {
+    additions: Vec<Value>,
+    extensions: Vec<Value>,
+    removals: Vec<Value>,
+}
+
+fn apply_overlay(root: &Path, manifest: &mut Manifest, base_ids: &HashSet<String>) -> Result<()> {
     let overlay_path = root.join("deps.local.yaml");
-    if overlay_path
-        .try_exists()
-        .context("cannot read deps.local.yaml")?
-    {
-        let overlay = read_manifest_mapping(
-            &overlay_path,
-            &["version", "add", "extend", "remove"],
-            &["version"],
-        )?;
-        ensure!(
-            version_one(&overlay["version"]),
-            "deps.local.yaml version must be 1"
-        );
-        let mut sections = Vec::new();
-        for name in ["add", "extend", "remove"] {
-            let empty = Vec::new();
-            let section = match overlay.get(name) {
-                Some(value) => value.as_sequence().with_context(|| {
-                    if name == "remove" {
-                        "deps.local.yaml remove must be a list"
-                    } else {
-                        "deps.local.yaml add and extend must be lists"
-                    }
-                })?,
-                None => &empty,
-            };
-            sections.push(section.clone());
-        }
-
-        let mut by_id: HashMap<String, usize> = manifest
-            .dependencies
-            .iter()
-            .enumerate()
-            .map(|(index, dep)| (dep.id.clone(), index))
-            .collect();
-        for (index, raw) in sections[0].iter().enumerate() {
-            let addition =
-                normalize_dependency(raw, &format!("deps.local.yaml.add[{index}]"), false)?;
-            ensure!(
-                !by_id.contains_key(&addition.id),
-                "deps.local.yaml add redefines dependency {}",
-                addition.id
-            );
-            by_id.insert(addition.id.clone(), manifest.dependencies.len());
-            manifest.dependencies.push(addition);
-        }
-
-        for (index, raw) in sections[1].iter().enumerate() {
-            let context = format!("deps.local.yaml.extend[{index}]");
-            let extension =
-                manifest_mapping(raw, &context, &["id", "include"], &["id", "include"])?;
-            let id = normalized_name(&extension["id"], &format!("{context}.id"))?;
-            let dependency_index = by_id
-                .get(&id)
-                .with_context(|| format!("deps.local.yaml extend names unknown dependency {id}"))?;
-            let dependency = &mut manifest.dependencies[*dependency_index];
-            ensure!(
-                dependency.selection.mode == "explicit",
-                "deps.local.yaml cannot extend discovery dependency {id}"
-            );
-            let extra = normalize_include(&extension["include"], &format!("{context}.include"))?;
-            for mapping in &extra {
-                ensure!(
-                    dependency.sparse.is_empty()
-                        || beneath_sparse(&mapping.source, &dependency.sparse),
-                    "deps.local.yaml source {} is outside {id} sparse paths",
-                    mapping.source
-                );
-                ensure!(
-                    !dependency.selection.include.contains(mapping),
-                    "deps.local.yaml repeats a mapping for {id}"
-                );
-                ensure!(
-                    !dependency
-                        .selection
-                        .include
-                        .iter()
-                        .any(|existing| existing.destination == mapping.destination),
-                    "duplicate destination {} in {id}",
-                    mapping.destination
-                );
-            }
-
-            dependency.selection.include.extend(extra);
-        }
-
-        let mut removals = HashSet::new();
-        for (index, raw) in sections[2].iter().enumerate() {
-            let id = normalized_name(raw, &format!("deps.local.yaml.remove[{index}]"))?;
-            ensure!(
-                base_ids.contains(&id),
-                "deps.local.yaml remove names unknown base dependency {id}"
-            );
-            removals.insert(id);
-        }
-
-        manifest
-            .dependencies
-            .retain(|dep| !removals.contains(&dep.id));
+    if !overlay_path.try_exists().context("cannot read deps.local.yaml")? {
+        return Ok(());
     }
 
+    let overlay = read_manifest_mapping(&overlay_path, &["version", "add", "extend", "remove"], &["version"])?;
+    ensure!(version_one(&overlay["version"]), "deps.local.yaml version must be 1");
+    let sections = overlay_sections(&overlay)?;
+    add_dependencies(manifest, &sections.additions)?;
+
+    let by_id = manifest
+        .dependencies
+        .iter()
+        .enumerate()
+        .map(|(index, dependency)| (dependency.id.clone(), index))
+        .collect();
+    extend_dependencies(manifest, &by_id, &sections.extensions)?;
+    remove_dependencies(manifest, base_ids, &sections.removals)
+}
+
+fn overlay_sections(overlay: &YamlMapping) -> Result<OverlaySections> {
+    let section = |name: &str, missing_message: &str| -> Result<Vec<Value>> {
+        match overlay.get(name) {
+            Some(value) => Ok(value.as_sequence().with_context(|| missing_message.to_owned())?.clone()),
+            None => Ok(Vec::new()),
+        }
+    };
+
+    Ok(OverlaySections {
+        additions: section("add", "deps.local.yaml add and extend must be lists")?,
+        extensions: section("extend", "deps.local.yaml add and extend must be lists")?,
+        removals: section("remove", "deps.local.yaml remove must be a list")?,
+    })
+}
+
+fn add_dependencies(manifest: &mut Manifest, additions: &[Value]) -> Result<()> {
+    let mut ids: HashSet<_> = manifest
+        .dependencies
+        .iter()
+        .map(|dependency| dependency.id.clone())
+        .collect();
+    for (index, raw) in additions.iter().enumerate() {
+        let addition = normalize_dependency(raw, &format!("deps.local.yaml.add[{index}]"), false)?;
+        ensure!(
+            ids.insert(addition.id.clone()),
+            "deps.local.yaml add redefines dependency {}",
+            addition.id
+        );
+        manifest.dependencies.push(addition);
+    }
+
+    Ok(())
+}
+
+fn extend_dependencies(manifest: &mut Manifest, by_id: &HashMap<String, usize>, extensions: &[Value]) -> Result<()> {
+    for (index, raw) in extensions.iter().enumerate() {
+        let context = format!("deps.local.yaml.extend[{index}]");
+        let extension = manifest_mapping(raw, &context, &["id", "include"], &["id", "include"])?;
+        let id = normalized_name(&extension["id"], &format!("{context}.id"))?;
+        let dependency_index = by_id
+            .get(&id)
+            .with_context(|| format!("deps.local.yaml extend names unknown dependency {id}"))?;
+        let dependency = &mut manifest.dependencies[*dependency_index];
+        ensure!(
+            dependency.selection.mode == "explicit",
+            "deps.local.yaml cannot extend discovery dependency {id}"
+        );
+        let extra = normalize_include(&extension["include"], &format!("{context}.include"))?;
+        for mapping in &extra {
+            ensure!(
+                dependency.sparse.is_empty() || beneath_sparse(&mapping.source, &dependency.sparse),
+                "deps.local.yaml source {} is outside {id} sparse paths",
+                mapping.source
+            );
+            ensure!(
+                !dependency.selection.include.contains(mapping),
+                "deps.local.yaml repeats a mapping for {id}"
+            );
+            ensure!(
+                !dependency
+                    .selection
+                    .include
+                    .iter()
+                    .any(|existing| existing.destination == mapping.destination),
+                "duplicate destination {} in {id}",
+                mapping.destination
+            );
+        }
+
+        dependency.selection.include.extend(extra);
+    }
+
+    Ok(())
+}
+
+fn remove_dependencies(manifest: &mut Manifest, base_ids: &HashSet<String>, removals: &[Value]) -> Result<()> {
+    let mut removed = HashSet::new();
+    for (index, raw) in removals.iter().enumerate() {
+        let id = normalized_name(raw, &format!("deps.local.yaml.remove[{index}]"))?;
+        ensure!(
+            base_ids.contains(&id),
+            "deps.local.yaml remove names unknown base dependency {id}"
+        );
+        removed.insert(id);
+    }
+
+    manifest
+        .dependencies
+        .retain(|dependency| !removed.contains(&dependency.id));
+    Ok(())
+}
+
+fn collect_authored_roots(root: &Path, manifest: &mut Manifest) -> Result<()> {
     for entry in fs::read_dir(root).context("cannot read authored skills")? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -185,6 +213,10 @@ pub fn load_manifest(root: &Path) -> Result<Manifest> {
     }
 
     manifest.durable_roots.sort();
+    Ok(())
+}
+
+fn validate_destinations(manifest: &Manifest) -> Result<()> {
     let mut owners = HashMap::new();
     for dependency in &manifest.dependencies {
         for destination in top_level_names(dependency) {
@@ -193,15 +225,12 @@ pub fn load_manifest(root: &Path) -> Result<Manifest> {
                 "managed destination {destination} collides with an authored skill"
             );
             if let Some(owner) = owners.insert(destination.clone(), &dependency.id) {
-                bail!(
-                    "duplicate destination {destination} in {owner} and {}",
-                    dependency.id
-                );
+                bail!("duplicate destination {destination} in {owner} and {}", dependency.id);
             }
         }
     }
 
-    Ok(manifest)
+    Ok(())
 }
 
 fn read_manifest_mapping(path: &Path, allowed: &[&str], required: &[&str]) -> Result<YamlMapping> {
@@ -210,9 +239,7 @@ fn read_manifest_mapping(path: &Path, allowed: &[&str], required: &[&str]) -> Re
     let data = legacy_yaml_booleans(&data).with_context(|| format!("cannot read {name}"))?;
     let mut documents = serde_yaml_ng::Deserializer::from_str(&data);
     let raw = match documents.next() {
-        Some(document) => {
-            Value::deserialize(document).with_context(|| format!("cannot read {name}"))?
-        }
+        Some(document) => Value::deserialize(document).with_context(|| format!("cannot read {name}"))?,
         None => Value::Null,
     };
     ensure!(
@@ -222,12 +249,7 @@ fn read_manifest_mapping(path: &Path, allowed: &[&str], required: &[&str]) -> Re
     Ok(manifest_mapping(&raw, &name, allowed, required)?.clone())
 }
 
-fn manifest_mapping<'a>(
-    raw: &'a Value,
-    context: &str,
-    allowed: &[&str],
-    required: &[&str],
-) -> Result<&'a YamlMapping> {
+fn manifest_mapping<'a>(raw: &'a Value, context: &str, allowed: &[&str], required: &[&str]) -> Result<&'a YamlMapping> {
     let mapping = raw
         .as_mapping()
         .with_context(|| format!("{context} must be a mapping"))?;
@@ -263,12 +285,15 @@ fn version_one(value: &Value) -> bool {
     value.as_bool() == Some(true) || value.as_f64() == Some(1.0)
 }
 
+/// Validate a single safe skill or destination directory name.
+///
+/// # Errors
+///
+/// Returns an error when the name is empty, reserved, hidden, or contains a path
+/// separator or NUL byte.
 pub fn safe_name(value: &str) -> Result<()> {
     ensure!(
-        !value.is_empty()
-            && value != "_managed"
-            && !value.starts_with('.')
-            && !value.contains(['/', '\\', '\0']),
+        !value.is_empty() && value != "_managed" && !value.starts_with('.') && !value.contains(['/', '\\', '\0']),
         "must be a safe directory name"
     );
     Ok(())
@@ -316,10 +341,7 @@ fn unique_manifest_strings(raw: &Value, context: &str, paths: bool) -> Result<Ve
         } else {
             normalized_name(value, &format!("{context} entry"))?
         };
-        ensure!(
-            seen.insert(normalized.clone()),
-            "{context} contains duplicates"
-        );
+        ensure!(seen.insert(normalized.clone()), "{context} contains duplicates");
         result.push(normalized);
     }
 
@@ -342,20 +364,12 @@ fn normalize_include(raw: &Value, context: &str) -> Result<Vec<Mapping>> {
     let mut destinations = HashSet::new();
     for (index, raw) in values.iter().enumerate() {
         let context = format!("{context}[{index}]");
-        let item = manifest_mapping(
-            raw,
-            &context,
-            &["source", "destination"],
-            &["source", "destination"],
-        )?;
+        let item = manifest_mapping(raw, &context, &["source", "destination"], &["source", "destination"])?;
         let mapping = Mapping {
             source: safe_repo_path(&item["source"], &format!("{context}.source"), true)?,
             destination: normalized_name(&item["destination"], &format!("{context}.destination"))?,
         };
-        ensure!(
-            pairs.insert(mapping.clone()),
-            "{context} contains duplicate mappings"
-        );
+        ensure!(pairs.insert(mapping.clone()), "{context} contains duplicate mappings");
         ensure!(
             destinations.insert(mapping.destination.clone()),
             "{context} contains duplicate destinations"
@@ -370,15 +384,7 @@ fn normalize_dependency(raw: &Value, context: &str, base: bool) -> Result<Depend
     let item = manifest_mapping(
         raw,
         context,
-        &[
-            "id",
-            "url",
-            "ref",
-            "sparse",
-            "selection",
-            "claude",
-            "router",
-        ],
+        &["id", "url", "ref", "sparse", "selection", "claude", "router"],
         &["id", "url", "selection"],
     )?;
     let mut dependency = Dependency {
@@ -414,10 +420,7 @@ fn normalize_dependency(raw: &Value, context: &str, base: bool) -> Result<Depend
 
     if let Some(sparse) = item.get("sparse").filter(|value| !value.is_null()) {
         dependency.sparse = unique_manifest_strings(sparse, &format!("{context}.sparse"), true)?;
-        ensure!(
-            !dependency.sparse.is_empty(),
-            "{context}.sparse must not be empty"
-        );
+        ensure!(!dependency.sparse.is_empty(), "{context}.sparse must not be empty");
     }
 
     if let Some(claude) = item.get("claude") {
@@ -443,70 +446,63 @@ fn normalize_dependency(raw: &Value, context: &str, base: bool) -> Result<Depend
         });
     }
 
-    let selection = item["selection"]
+    let selection = normalize_selection(&item["selection"], context, &dependency.sparse)?;
+    ensure!(
+        dependency.claude || selection.mode == "explicit" || dependency.router.is_some(),
+        "{context}.claude: false requires explicit selection or a router"
+    );
+    dependency.selection = selection;
+    Ok(dependency)
+}
+
+fn normalize_selection(raw: &Value, context: &str, sparse: &[String]) -> Result<Selection> {
+    let mapping = raw
         .as_mapping()
         .with_context(|| format!("{context}.selection must be a mapping"))?;
-    let mode = selection
-        .get("mode")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    dependency.selection.mode = mode.to_owned();
+    let mode = mapping.get("mode").and_then(Value::as_str).unwrap_or_default();
+    let mut selection = Selection {
+        mode: mode.to_owned(),
+        ..Selection::default()
+    };
     match mode {
         "explicit" => {
             manifest_mapping(
-                &item["selection"],
+                raw,
                 &format!("{context}.selection"),
                 &["mode", "include"],
                 &["mode", "include"],
             )?;
-            dependency.selection.include = normalize_include(
-                &selection["include"],
-                &format!("{context}.selection.include"),
-            )?;
-            for mapping in &dependency.selection.include {
+            selection.include = normalize_include(&mapping["include"], &format!("{context}.selection.include"))?;
+            for item in &selection.include {
                 ensure!(
-                    dependency.sparse.is_empty()
-                        || beneath_sparse(&mapping.source, &dependency.sparse),
+                    sparse.is_empty() || beneath_sparse(&item.source, sparse),
                     "{context} source {} is outside sparse paths",
-                    mapping.source
+                    item.source
                 );
             }
         }
         "discovery" => {
             manifest_mapping(
-                &item["selection"],
+                raw,
                 &format!("{context}.selection"),
                 &["mode", "root", "exclude"],
                 &["mode", "root"],
             )?;
-            dependency.selection.root = safe_repo_path(
-                &selection["root"],
-                &format!("{context}.selection.root"),
-                true,
-            )?;
-            if let Some(exclude) = selection.get("exclude") {
-                dependency.selection.exclude = unique_manifest_strings(
-                    exclude,
-                    &format!("{context}.selection.exclude"),
-                    false,
-                )?;
+            selection.root = safe_repo_path(&mapping["root"], &format!("{context}.selection.root"), true)?;
+            if let Some(exclude) = mapping.get("exclude") {
+                selection.exclude = unique_manifest_strings(exclude, &format!("{context}.selection.exclude"), false)?;
             }
 
             ensure!(
-                dependency.sparse.is_empty()
-                    || beneath_sparse(&dependency.selection.root, &dependency.sparse),
+                sparse.is_empty() || beneath_sparse(&selection.root, sparse),
                 "{context} discovery root {} is outside sparse paths",
-                dependency.selection.root
+                selection.root
             );
         }
         _ => bail!("{context}.selection.mode must be explicit or discovery"),
     }
 
-    ensure!(
-        dependency.claude || mode == "explicit" || dependency.router.is_some(),
-        "{context}.claude: false requires explicit selection or a router"
-    );
-    Ok(dependency)
+    Ok(selection)
 }
 
 pub fn top_level_names(dependency: &Dependency) -> Vec<String> {
