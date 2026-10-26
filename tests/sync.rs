@@ -346,6 +346,32 @@ fn missing_and_corrupt_git_cache_are_rebuilt() -> Result<()> {
 }
 
 #[test]
+fn failed_refresh_of_reused_cache_retries_from_fresh_clone() -> Result<()> {
+    let f = Fixture::new()?;
+    f.sync()?;
+    let before = fs::metadata(f.installed()).unwrap();
+    let clones: Vec<_> = fs::read_dir(f.cache.join("skillctl/repos"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert!(!clones.is_empty());
+    // An invalid refspec keeps the clone valid but makes the refresh fetch fail.
+    for clone in &clones {
+        let status = Command::new("git")
+            .current_dir(clone)
+            .args(["config", "remote.origin.fetch", "bad::spec"])
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    f.sync()?;
+    unchanged(&before, f.installed())?;
+
+    Ok(())
+}
+
+#[test]
 fn malformed_empty_and_trailing_lock_records_are_repaired_in_place() -> Result<()> {
     let f = Fixture::new()?;
     f.sync()?;

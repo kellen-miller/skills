@@ -62,42 +62,49 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
         }
     }
 
-    if !clone.exists() {
-        fs::create_dir_all(&clone)?;
-        run_git(&clone, &["init", "--quiet"])?;
-        run_git(&clone, &["remote", "add", "origin", &dependency.url])?;
-    }
-
-    let result = (|| -> Result<()> {
-        let reference = if dependency.reference.is_empty() {
-            "HEAD"
-        } else {
-            &dependency.reference
-        };
-        run_git(
-            &clone,
-            &[
-                "fetch",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--no-tags",
-                "--force",
-                "origin",
-                reference,
-            ],
-        )?;
-        if !dependency.sparse.is_empty() {
-            let mut args = vec!["sparse-checkout", "set"];
-            args.extend(dependency.sparse.iter().map(String::as_str));
-            run_git(&clone, &args)?;
+    // Incremental shallow partial fetches into a reused clone can fail when the
+    // server omits objects; retry once from a fresh clone before giving up.
+    let mut reused = clone.exists();
+    loop {
+        if !clone.exists() {
+            fs::create_dir_all(&clone)?;
+            run_git(&clone, &["init", "--quiet"])?;
+            run_git(&clone, &["remote", "add", "origin", &dependency.url])?;
         }
 
-        run_git(&clone, &["checkout", "--force", "--detach", "FETCH_HEAD"])?;
-        run_git(&clone, &["clean", "-ffdx"])?;
-        Ok(())
-    })();
-    if let Err(error) = result {
+        let result = (|| -> Result<()> {
+            let reference = if dependency.reference.is_empty() {
+                "HEAD"
+            } else {
+                &dependency.reference
+            };
+            run_git(
+                &clone,
+                &[
+                    "fetch",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--no-tags",
+                    "--force",
+                    "origin",
+                    reference,
+                ],
+            )?;
+            if !dependency.sparse.is_empty() {
+                let mut args = vec!["sparse-checkout", "set"];
+                args.extend(dependency.sparse.iter().map(String::as_str));
+                run_git(&clone, &args)?;
+            }
+
+            run_git(&clone, &["checkout", "--force", "--detach", "FETCH_HEAD"])?;
+            run_git(&clone, &["clean", "-ffdx"])?;
+            Ok(())
+        })();
+        let Err(error) = result else {
+            return Ok(clone);
+        };
+
         // Failed refreshes never fall back to stale content.
         if let Err(cleanup_error) = fs::remove_dir_all(&clone) {
             return Err(error).context(format!(
@@ -106,8 +113,10 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
             ));
         }
 
-        return Err(error).with_context(|| format!("{} acquisition failed", dependency.id));
-    }
+        if !reused {
+            return Err(error).with_context(|| format!("{} acquisition failed", dependency.id));
+        }
 
-    Ok(clone)
+        reused = false;
+    }
 }
