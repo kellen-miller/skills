@@ -1,0 +1,8 @@
+{
+  "checks": [
+    "Renovate / Config validation",
+    "test",
+    "GitHub Actions / Workflow validation",
+    "Code duplication (CPD)"
+  ]
+}
