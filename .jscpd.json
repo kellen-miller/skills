@@ -24,5 +24,6 @@
     "**/_managed/**"
   ],
   "gitignore": true,
-  "mode": "mild"
+  "mode": "mild",
+  "failOnEmpty": true
 }

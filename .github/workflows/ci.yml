@@ -41,13 +41,16 @@ jobs:
             GIT_TERMINAL_PROMPT=0 ./target/debug/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
   duplication:
+    name: Code duplication (CPD)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@2af77688327c2fc0f164e91f77e8784ef25e14c6 # main
+        uses: kellen-miller/ci/.github/actions/code-duplication@eb1a4f5900aaa6468cffb67513da61078265ba26 # main
         with:
           # renovate: datasource=crate depName=jscpd versioning=semver
           version: '5.4.1'
