@@ -46,7 +46,7 @@ pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Resul
     ]))?;
     let clone = cache
         .join("repos")
-        .join(format!("{:x}", Sha256::digest(identity)));
+        .join(hex::encode(Sha256::digest(identity)));
     if clone.exists() {
         let valid = (|| -> Result<bool> {
             let git_dir = run_git(&clone, &["rev-parse", "--absolute-git-dir"])?;

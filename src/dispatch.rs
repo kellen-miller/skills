@@ -298,10 +298,9 @@ fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
 
     validate_ticket_graph(&tickets)?;
 
-    let digest = format!(
-        "{:x}",
-        Sha256::digest(fingerprint_json(&json!([raw, inputs]))?.as_bytes())
-    );
+    let digest = hex::encode(Sha256::digest(
+        fingerprint_json(&json!([raw, inputs]))?.as_bytes(),
+    ));
     Ok(Graph {
         path,
         branch: branch.to_owned(),
@@ -1136,10 +1135,9 @@ impl Execution<'_> {
             .as_array()
             .context("task history is invalid")?;
         let attempt = history.len() + 1;
-        let hash = format!(
-            "{:x}",
-            Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes())
-        );
+        let hash = hex::encode(Sha256::digest(
+            self.graph.path.as_os_str().as_encoded_bytes(),
+        ));
         let worker_root = self
             .repo
             .parent()
