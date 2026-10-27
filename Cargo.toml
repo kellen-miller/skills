@@ -2,7 +2,7 @@
 name = "skillctl"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.99.1"
 license = "MIT"
 description = "Synchronize agent skills and dispatch approved implementation tickets"
 repository = "https://github.com/kellen-miller/skills"
