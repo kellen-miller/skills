@@ -127,7 +127,7 @@ fn prepare_sync(manifest: &Manifest, clones: &[PathBuf]) -> Result<PreparedSync>
     }
 
     let mut inputs = GenerationInputs {
-        generator: format!("skillctl-rust:{:x}", generator.finalize()),
+        generator: format!("skillctl-rust:{}", hex::encode(generator.finalize())),
         durable_roots: manifest.durable_roots.clone(),
         dependencies: Vec::new(),
     };

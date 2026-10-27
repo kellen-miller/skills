@@ -44,7 +44,7 @@ pub(crate) fn tree_fingerprint(root: &Path) -> Result<String> {
         digest.update(content);
     }
 
-    Ok(format!("{:x}", digest.finalize()))
+    Ok(hex::encode(digest.finalize()))
 }
 
 pub(crate) fn trees_equal(left: &Path, right: &Path) -> Result<bool> {

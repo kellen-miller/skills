@@ -176,10 +176,9 @@ pub(super) fn load_graph(repo: &Path, path: &Path) -> Result<Graph> {
 
     validate_ticket_graph(&tickets)?;
 
-    let digest = format!(
-        "{:x}",
-        Sha256::digest(fingerprint_json(&json!([raw, inputs]))?.as_bytes())
-    );
+    let digest = hex::encode(Sha256::digest(
+        fingerprint_json(&json!([raw, inputs]))?.as_bytes(),
+    ));
     Ok(Graph {
         path,
         branch: branch.to_owned(),

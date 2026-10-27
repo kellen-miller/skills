@@ -53,4 +53,4 @@ jobs:
         uses: kellen-miller/ci/.github/actions/code-duplication@1edef8bc9492ec29052f26cc32e21e1fdeb73373 # main
         with:
           # renovate: datasource=crate depName=jscpd versioning=semver
-          version: '5.4.1'
+          version: '5.4.2'

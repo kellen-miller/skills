@@ -10,15 +10,16 @@ repository = "https://github.com/kellen-miller/skills"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.6.7", features = ["derive"] }
+hex = "0.4.3"
 fs2 = "0.4.3"
 minijinja = { version = "3.0.1", features = ["json", "serde"] }
-nix = { version = "0.30", features = ["signal", "process"] }
+nix = { version = "0.31", features = ["signal", "process"] }
 regex = "1.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml_ng = "0.10.0"
-sha2 = "0.10.9"
-signal-hook = "0.3"
+sha2 = "0.11.0"
+signal-hook = "0.4"
 tempfile = "3.23"
 walkdir = "2.5"
-yaml-rust2 = "0.11"
+yaml-rust2 = "0.13"

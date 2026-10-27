@@ -287,10 +287,9 @@ impl Execution<'_> {
             .as_array()
             .context("task history is invalid")?;
         let attempt = history.len() + 1;
-        let hash = format!(
-            "{:x}",
-            Sha256::digest(self.graph.path.as_os_str().as_encoded_bytes())
-        );
+        let hash = hex::encode(Sha256::digest(
+            self.graph.path.as_os_str().as_encoded_bytes(),
+        ));
         let worker_root = self
             .repo
             .parent()
