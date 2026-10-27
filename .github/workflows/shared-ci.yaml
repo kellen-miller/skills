@@ -9,7 +9,7 @@ concurrency:
 jobs:
   workflows:
     name: GitHub Actions
-    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@eb1a4f5900aaa6468cffb67513da61078265ba26 # main
+    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@1edef8bc9492ec29052f26cc32e21e1fdeb73373 # main
   renovate:
     name: Renovate
-    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@eb1a4f5900aaa6468cffb67513da61078265ba26 # main
+    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@1edef8bc9492ec29052f26cc32e21e1fdeb73373 # main
