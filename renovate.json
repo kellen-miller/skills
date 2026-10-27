@@ -1,11 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>kellen-miller/.github:renovate-config"],
+  "extends": [
+    "local>kellen-miller/.github:renovate-config"
+  ],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Update versioned Cargo install commands in documentation.",
-      "managerFilePatterns": ["/\\.md$/"],
+      "managerFilePatterns": [
+        "/\\.md$/"
+      ],
       "matchStrings": [
         "cargo install (?<depName>[a-zA-Z0-9_-]+) --version (?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -15,13 +19,25 @@
     {
       "customType": "regex",
       "description": "Update the minimum supported Rust compiler version.",
-      "managerFilePatterns": ["/(^|/)Cargo\\.toml$/"],
+      "managerFilePatterns": [
+        "/(^|/)Cargo\\.toml$/"
+      ],
       "matchStrings": [
         "(?:^|\\n)rust-version\\s*=\\s*\"(?<currentValue>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)\""
       ],
       "depNameTemplate": "rust",
       "datasourceTemplate": "rust-version",
       "versioningTemplate": "semver-coerced"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Keep the declared Rust minimum and installed CI compiler together.",
+      "matchDatasources": [
+        "rust-version"
+      ],
+      "groupName": "Rust compiler",
+      "groupSlug": "rust-compiler"
     }
   ]
 }
