@@ -30,9 +30,9 @@ mod execution;
 mod graph;
 mod worker;
 
-use execution::*;
-use graph::*;
-use worker::*;
+use execution::Execution;
+use graph::{load_graph, text};
+use worker::{Worker, process_alive, settle_children, stop_process};
 
 static INTERRUPTED: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 fn interruption() -> &'static Arc<AtomicBool> {
@@ -510,7 +510,10 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Execution, Graph, RunState, State, Worker, fingerprint_json, process_alive};
+    use super::execution::{Execution, RunState};
+    use super::graph::fingerprint_json;
+    use super::worker::{Worker, process_alive};
+    use super::{Graph, State};
     use anyhow::{Result, anyhow, ensure};
     use serde_json::json;
     use std::{collections::BTreeMap, fs, process::Command, time::Duration};

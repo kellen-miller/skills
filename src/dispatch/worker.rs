@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, AtomicBool, Child, Command, CommandExt, Duration, Instant, Mutex, MutexGuard, Ordering,
+    Pid, Result, Signal, anyhow, bail, ensure, signal, thread,
+};
 
 pub(super) fn process_alive(pid: u32) -> Result<bool> {
     let output = Command::new("ps").args(["-axo", "pgid=,stat="]).output()?;
