@@ -169,6 +169,20 @@ retain the validated objective, and continue already-authorized implementation
 unless the user required active Goal execution. Never claim activation succeeded
 without tool evidence.
 
+In Claude Code the native Goal is `/goal <condition>`, a session-scoped Stop
+hook: after each turn a small model judges the condition against the transcript
+only, without reading files or running commands. Claude cannot set it; skip
+Goalcraft's activation step and keep its validated objective (same 4,000-character
+limit) as the condition. Phrase it so transcript output proves completion: name
+the integrated checks whose output must appear, the review disposition, and the
+handoff link, and require a final evidence summary. Save it to
+`<work-item>/goal.md`, give the user the exact `/goal ...` line to run (auto mode
+for unattended turns), and report activation pending until the `/goal` status or
+the active indicator confirms it. Run the dispatcher in the background; background
+work defers evaluation rather than ending the Goal. Resume restores an active Goal;
+if it clears as impossible, on an unrecoverable error, or through `/clear`, report
+that and re-offer the saved condition.
+
 Prefer `$dispatch-tickets` for repeated ticket distribution. Its script validates
 the task graph, launches ready workers within capacity, persists scheduling and
 integration evidence, and serializes integration. Use an explicitly configured
