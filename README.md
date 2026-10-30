@@ -18,11 +18,52 @@ keeps authored files editable, managed dependencies reproducible, and every
 agent runtime on the machine pointed at the same skill tree.
 
 `grill-plan-build` coordinates design, investigation, and task decomposition.
+Each root-level authored skill owns its instructions and supporting resources.
+`skillctl package-plugin` assembles those folders into an installable plugin
+under ignored `dist/kellen-skills/`; source skill folders stay at the root.
+
 `dispatch-tickets` runs an approved graph through configurable CLI workers in
 isolated worktrees, retaining validation and recovery evidence.
 `explain-implementation` provides the visual explanation in the PR itself.
 
-## Requirements
+## Use The Plugin Or A Single Skill
+
+Install the assembled plugin, or copy a root-level skill folder into
+`~/.agents/skills/<skill-name>`. Markdown-only skills need no build. The dispatcher
+folder includes its complete Cargo project, lockfile, pinned toolchain, license,
+tests, and macOS/Linux and Windows launchers:
+
+```sh
+/absolute/path/to/dispatch-tickets/scripts/run --help
+```
+
+The launcher compiles source locally on first use and checks freshness on later
+runs. Build artifacts live in the user cache; Cargo serializes concurrent builds.
+Windows uses `scripts/run.ps1`. Rust/Cargo and Git must be installed; first builds
+fetch locked Cargo dependencies. No prebuilt executables are downloaded.
+
+`grill-plan-build` coordinates sibling skills. Install supporting skills when
+available; its documented fallback handles missing capabilities directly. The
+assembled plugin includes authored skills only, not machine-local overlays or
+generated external dependencies. Maintainers use `skillctl sync` below to
+acquire `_managed/` skills. A plain source download contains authored skills,
+not those generated dependencies.
+
+## Assemble The Plugin
+
+```sh
+cargo run --locked --bin skillctl -- package-plugin
+```
+
+Output: `dist/kellen-skills/plugin.json` and `dist/kellen-skills/skills/`.
+Only tracked files inside authored skill folders are copied from the working
+tree, plus the root license. Stage new files first; untracked skill folders
+are omitted. Build artifacts, private manifests, and `_managed/` are excluded. Existing output is refused; move it
+before packaging again. Install that output folder using your host’s local
+plugin workflow. Packaging needs the repository; consuming a copied dispatcher
+skill does not. Hosts must provide local shell execution for Rust-backed skills.
+
+## Maintainer Requirements
 
 - macOS, Linux, or Windows (Windows: `dispatch-tickets` tracks worker trees with
   Job Objects; create `%USERPROFILE%\.agents\skills` as a directory junction or
@@ -32,7 +73,7 @@ isolated worktrees, retaining validation and recovery evidence.
 - Network access to the Git repositories declared in `deps.yaml` and any
   machine-local overlay
 
-## Install
+## Maintainer Install
 
 Clone the repository, link the standard cross-runtime skill directory to it,
 and materialize the managed dependencies:
@@ -58,7 +99,9 @@ configuration have been preserved.
 | `_managed/` | Generated | External skills materialized from the dependency manifests |
 | `deps.yaml` | Authored | Public, reproducible external dependency declarations |
 | `deps.local.yaml` | Machine-local | Ignored additions, extensions, and removals for one machine |
-| `src/` | Authored | Rust skill synchronization, dispatcher, and command entry points |
+| `src/` | Authored | Rust skill synchronization and maintainer command entry point |
+| `dispatch-tickets/` | Authored | Self-contained dispatcher skill, Rust source, tests, and launchers |
+| `templates/plugin.json` | Authored | Manifest embedded in assembled plugins |
 | `templates/` | Authored | Embedded lock JSON and router/index Markdown templates |
 | `Cargo.toml`, `Cargo.lock` | Authored/generated | Rust package and locked dependencies |
 | `tests/` | Authored | Publication and authored skill regression coverage |
@@ -86,7 +129,8 @@ skillctl sync
 then falls back to `~/.agents/skills`. Pass `--root PATH` after either command to
 select a checkout explicitly. Installed binaries include their output templates
 and do not depend on the build directory. Ensure Cargo's installation directory
-(usually `~/.cargo/bin`) is on `PATH`. The same install supplies `dispatch-tickets`.
+(usually `~/.cargo/bin`) is on `PATH`. The root Cargo install supplies only
+`skillctl`; use the dispatcher skill’s bundled launcher for dispatch.
 
 `skillctl` validates the complete manifest before acquisition. It rejects
 unsafe paths, duplicate dependency IDs, duplicate destinations, collisions
@@ -320,6 +364,9 @@ cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo test --locked --workspace --all-targets --all-features
 cargo test --locked --workspace --doc
+cargo fmt --manifest-path dispatch-tickets/Cargo.toml -- --check
+cargo clippy --manifest-path dispatch-tickets/Cargo.toml --locked --all-targets -- -D warnings
+cargo test --manifest-path dispatch-tickets/Cargo.toml --locked --all-targets
 cargo build --locked --workspace --all-targets --all-features
 cpd --config .jscpd.json --no-tips --no-colors
 ./target/debug/skillctl sync --dry-run

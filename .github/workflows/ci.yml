@@ -34,6 +34,18 @@ jobs:
           fi
       - name: Check Rust workspace
         uses: kellen-miller/ci/.github/actions/rust-check@1edef8bc9492ec29052f26cc32e21e1fdeb73373 # main
+      - name: Check standalone dispatcher
+        shell: bash
+        run: |
+          cargo fmt --manifest-path dispatch-tickets/Cargo.toml -- --check
+          cargo clippy --manifest-path dispatch-tickets/Cargo.toml --locked --all-targets --all-features -- -D warnings
+          cargo test --manifest-path dispatch-tickets/Cargo.toml --locked --all-targets --all-features
+          cargo test --manifest-path dispatch-tickets/Cargo.toml --locked --doc
+      - name: Check assembled plugin
+        shell: bash
+        run: |
+          cargo run --locked --bin skillctl -- package-plugin
+          dist/kellen-skills/skills/dispatch-tickets/scripts/run --help
       - name: Regenerate anonymously
         shell: bash
         run: |
@@ -50,6 +62,12 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Test
         run: cargo test --locked
+      - name: Lint standalone dispatcher
+        run: cargo clippy --manifest-path dispatch-tickets/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Test standalone dispatcher
+        run: cargo test --manifest-path dispatch-tickets/Cargo.toml --locked
+      - name: Check PowerShell launcher
+        run: ./dispatch-tickets/scripts/run.ps1 --help
   duplication:
     name: Code duplication (CPD)
     permissions:

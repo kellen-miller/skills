@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
 license = "MIT"
-description = "Synchronize agent skills and dispatch approved implementation tickets"
+description = "Synchronize agent skills"
 repository = "https://github.com/kellen-miller/skills"
 
 [dependencies]
@@ -21,16 +21,3 @@ sha2 = "0.11.0"
 tempfile = "3.23"
 walkdir = "2.5"
 yaml-rust2 = "0.13"
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal", "process"] }
-signal-hook = "0.4"
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = [
-  "Win32_Foundation",
-  "Win32_Security",
-  "Win32_System_Console",
-  "Win32_System_JobObjects",
-  "Win32_System_Threading",
-] }

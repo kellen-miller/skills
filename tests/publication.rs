@@ -154,7 +154,11 @@ fn public_manifest_contains_only_reviewed_public_dependencies() {
 fn rust_tooling_replaces_python_and_go_tooling() {
     for path in [
         "src/bin/skillctl.rs",
-        "src/bin/dispatch-tickets.rs",
+        "dispatch-tickets/src/main.rs",
+        "dispatch-tickets/Cargo.toml",
+        "dispatch-tickets/Cargo.lock",
+        "dispatch-tickets/scripts/run",
+        "dispatch-tickets/scripts/run.ps1",
         "Cargo.toml",
         "Cargo.lock",
     ] {

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kellen-skills",
+  "version": "0.1.0",
+  "description": "Design, plan, implement, and review software with locally built skill tools.",
+  "repository": "https://github.com/kellen-miller/skills",
+  "license": "MIT"
+}

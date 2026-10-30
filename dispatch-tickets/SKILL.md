@@ -46,15 +46,24 @@ executes these commands; it does not choose or verify model capability.
 
 ## Preview And Execute
 
-Install the Rust dispatcher from the skills checkout if needed, then invoke it:
+Resolve `<skill-dir>` to this installed skill's absolute directory. Run its
+bundled launcher; it compiles bundled Rust source on first use and lets Cargo
+rebuild changed source. Artifacts stay in the user cache, outside the skill and
+target repository. Requires Rust/Cargo, Git, and first-build access to crates.io;
+no prebuilt binaries or repository-root tooling are needed.
+
+On macOS/Linux:
 
 ```sh
-cargo install --path ~/.agents/skills --locked   # Windows: %USERPROFILE%\.agents\skills
-dispatch-tickets --repo <integration-worktree> \
+"<skill-dir>/scripts/run" --repo <integration-worktree> \
   --graph <work-item>/tickets.json status
-dispatch-tickets --repo <integration-worktree> \
+"<skill-dir>/scripts/run" --repo <integration-worktree> \
   --graph <work-item>/tickets.json run --jobs 3
 ```
+
+On Windows, invoke `& "<skill-dir>/scripts/run.ps1"` with the same arguments.
+Launchers retain the caller's working directory and forward arguments and exit
+status. Set `XDG_CACHE_HOME` on macOS/Linux to select another build cache.
 
 `status` validates and previews without mutations or model calls. `run` starts
 local coding-agent processes and performs Git writes. A request to execute the

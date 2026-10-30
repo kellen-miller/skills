@@ -1,4 +1,4 @@
-use crate::{claude::install_claude, manifest::load_manifest, sync::sync};
+use crate::{claude::install_claude, manifest::load_manifest, plugin::package_plugin, sync::sync};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use std::{
@@ -20,6 +20,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    PackagePlugin {
+        #[arg(long)]
+        root: Option<PathBuf>,
+    },
     Sync {
         #[arg(long)]
         dry_run: bool,
@@ -49,7 +53,13 @@ enum Commands {
 pub fn run(args: Vec<OsString>, out: &mut dyn Write) -> Result<()> {
     let cli = Cli::try_parse_from(args)?;
     let home = std::env::home_dir().context("cannot determine home directory")?;
+    if let Commands::PackagePlugin { root } = cli.command {
+        let root = discover_root(root.as_deref(), &home)?;
+        return package_plugin(&root, &load_manifest(&root)?, out);
+    }
+
     let (root, target, dry_run, run_sync, no_claude) = match cli.command {
+        Commands::PackagePlugin { .. } => unreachable!("handled above"),
         Commands::Sync {
             dry_run,
             no_claude,
