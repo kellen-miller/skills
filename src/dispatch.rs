@@ -2,10 +2,6 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use fs2::FileExt;
-use nix::{
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -15,7 +11,6 @@ use std::{
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::Write,
-    os::unix::process::CommandExt,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -32,7 +27,9 @@ mod worker;
 
 use execution::Execution;
 use graph::{load_graph, text};
-use worker::{Worker, process_alive, settle_children, stop_process};
+use worker::{
+    Worker, process_alive, register_interrupts, settle_children, spawn_isolated, stop_process,
+};
 
 static INTERRUPTED: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 fn interruption() -> &'static Arc<AtomicBool> {
@@ -288,14 +285,14 @@ fn run_checks(
         );
         writeln!(log, "\nCHECK {}", serde_json::to_string(argv)?)?;
         log.flush()?;
-        let mut child = Command::new(&argv[0])
+        let mut command = Command::new(&argv[0]);
+        command
             .args(&argv[1..])
             .current_dir(cwd)
             .stdin(Stdio::null())
             .stdout(log.try_clone()?)
-            .stderr(log.try_clone()?)
-            .process_group(0)
-            .spawn()?;
+            .stderr(log.try_clone()?);
+        let mut child = spawn_isolated(&mut command)?;
         let deadline = Instant::now() + timeout;
         let status = loop {
             if interruption().load(Ordering::SeqCst) || Instant::now() >= deadline {
@@ -484,10 +481,7 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                 .open(repo.join(".agent/work/.dispatch.lock"))?;
             FileExt::try_lock_exclusive(&lock).context("dispatcher is already running")?;
             interruption().store(false, Ordering::SeqCst);
-            let term =
-                signal_hook::flag::register(signal_hook::consts::SIGTERM, interruption().clone())?;
-            let int =
-                signal_hook::flag::register(signal_hook::consts::SIGINT, interruption().clone())?;
+            let interrupts = register_interrupts()?;
             let result = Execution {
                 repo: &repo,
                 graph: &graph,
@@ -498,8 +492,7 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                 accept_head: accept_head.as_deref(),
             }
             .execute(&directory);
-            signal_hook::low_level::unregister(term);
-            signal_hook::low_level::unregister(int);
+            drop(interrupts);
 
             result?;
         }
@@ -540,8 +533,15 @@ mod tests {
             tickets: BTreeMap::new(),
             digest: "graph".to_owned(),
         };
-        let mut command = Command::new("sleep");
-        command.arg("30");
+        let command = if cfg!(windows) {
+            let mut ping = Command::new("ping");
+            ping.args(["-n", "30", "127.0.0.1"]);
+            ping
+        } else {
+            let mut sleep = Command::new("sleep");
+            sleep.arg("30");
+            sleep
+        };
         let worker = Worker::spawn(command, Duration::from_secs(60))?;
         let pid = worker.child_process()?.id();
         *worker

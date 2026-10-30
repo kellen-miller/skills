@@ -49,7 +49,7 @@ executes these commands; it does not choose or verify model capability.
 Install the Rust dispatcher from the skills checkout if needed, then invoke it:
 
 ```sh
-cargo install --path ~/.agents/skills --locked
+cargo install --path ~/.agents/skills --locked   # Windows: %USERPROFILE%\.agents\skills
 dispatch-tickets --repo <integration-worktree> \
   --graph <work-item>/tickets.json status
 dispatch-tickets --repo <integration-worktree> \

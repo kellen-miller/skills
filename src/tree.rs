@@ -3,10 +3,12 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     fs,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 pub(crate) fn tree_fingerprint(root: &Path) -> Result<String> {
     match fs::symlink_metadata(root) {
@@ -34,12 +36,15 @@ pub(crate) fn tree_fingerprint(root: &Path) -> Result<String> {
             bail!("unsupported skill file: {}", path.display());
         };
         let relative = path.strip_prefix(root)?.to_string_lossy();
-        digest.update(serde_json::to_vec(&(
-            relative,
-            kind,
-            info.permissions().mode(),
-            content.len(),
-        ))?);
+        #[cfg(unix)]
+        let mode = info.permissions().mode();
+        #[cfg(not(unix))]
+        let mode = if info.permissions().readonly() {
+            0o444
+        } else {
+            0o644
+        };
+        digest.update(serde_json::to_vec(&(relative, kind, mode, content.len()))?);
         digest.update(b"\n");
         digest.update(content);
     }
