@@ -19,7 +19,12 @@ pub(crate) fn tree_fingerprint(root: &Path) -> Result<String> {
     }
 
     let mut digest = Sha256::new();
-    for entry in WalkDir::new(root).min_depth(1).sort_by_file_name() {
+    for entry in WalkDir::new(root)
+        .min_depth(1)
+        .sort_by_file_name()
+        .into_iter()
+        .filter_entry(|entry| entry.file_name() != "target")
+    {
         let entry = entry?;
         let path = entry.path();
         let info = fs::symlink_metadata(path)?;
@@ -110,7 +115,7 @@ fn copy_entry(
         fs::create_dir(target)?;
         for entry in fs::read_dir(source)? {
             let entry = entry?;
-            if entry.file_name() != ".git" {
+            if entry.file_name() != ".git" && entry.file_name() != "target" {
                 copy_entry(
                     &entry.path(),
                     &target.join(entry.file_name()),
@@ -133,4 +138,28 @@ fn copy_entry(
     fs::copy(source, target)?;
     fs::set_permissions(target, info.permissions())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{copy_skill_tree, tree_fingerprint};
+    use anyhow::Result;
+    use std::fs;
+
+    #[test]
+    fn build_artifacts_do_not_change_or_enter_installed_skills() -> Result<()> {
+        let fixture = tempfile::tempdir()?;
+        let source = fixture.path().join("skill");
+        fs::create_dir(&source)?;
+        fs::write(source.join("SKILL.md"), "instructions")?;
+        let before = tree_fingerprint(&source)?;
+        fs::create_dir_all(source.join("target/debug"))?;
+        fs::write(source.join("target/debug/binary"), "build artifact")?;
+        assert_eq!(before, tree_fingerprint(&source)?);
+        let installed = fixture.path().join("installed");
+        copy_skill_tree(&source, &installed, None)?;
+        assert!(!installed.join("target").exists());
+        assert!(installed.join("SKILL.md").is_file());
+        Ok(())
+    }
 }

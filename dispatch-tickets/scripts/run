@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "dispatch-tickets requires Rust/Cargo; install the toolchain in $skill_dir/rust-toolchain.toml" >&2
+    exit 127
+fi
+
+# Separate installations share no artifacts. Cargo handles freshness and build locks.
+cache_root=${XDG_CACHE_HOME:-"$HOME/.cache"}
+installation=$(printf '%s' "$skill_dir" | cksum | awk '{print $1}')
+toolchain=$(sed -n 's/^channel = "\([^"]*\)"/\1/p' "$skill_dir/rust-toolchain.toml")
+target_dir="$cache_root/agent-skills/dispatch-tickets/$installation"
+host=$(RUSTUP_TOOLCHAIN="$toolchain" rustc -vV | sed -n 's/^host: //p')
+(cd "$skill_dir" && RUSTUP_TOOLCHAIN="$toolchain" cargo build --target "$host" --quiet --locked \
+    --manifest-path "$skill_dir/Cargo.toml" \
+    --target-dir "$target_dir")
+exec "$target_dir/$host/debug/dispatch-tickets" "$@"

@@ -1,6 +1,7 @@
 # Ticket graph and CLI protocol
 
-Install `dispatch-tickets` with `cargo install --path ~/.agents/skills --locked`.
+Run the bundled `../scripts/run` launcher by absolute path (Windows: `../scripts/run.ps1`).
+It builds this skill’s source locally; no global dispatcher installation is required.
 Git, `ps`, and POSIX process groups/file locks are required on macOS/Linux. No
 provider SDK is required. Its checks and owned
 paths validate results; they are not an operating-system security boundary.

@@ -186,8 +186,8 @@ that and re-offer the saved condition.
 Prefer `$dispatch-tickets` for repeated ticket distribution. Its script validates
 the task graph, launches ready workers within capacity, persists scheduling and
 integration evidence, and serializes integration. Use an explicitly configured
-worker command and model supported by the runtime. Start with its read-only
-preview. Commit the approved source baseline before running its isolated workers.
+worker command and model supported by the runtime. Resolve its installed skill directory and use its bundled local-build launcher;
+do not assume a globally installed dispatcher. Start with its read-only preview. Commit the approved source baseline before running its isolated workers.
 
 The script owns routine dispatch and Git transfer; the main agent owns design
 changes, failure diagnosis, integration acceptance, and user communication.

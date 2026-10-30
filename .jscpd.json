@@ -1,7 +1,9 @@
 {
   "path": [
     "src",
-    "tests"
+    "tests",
+    "dispatch-tickets/src",
+    "dispatch-tickets/tests"
   ],
   "format": [
     "rust"
