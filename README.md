@@ -24,9 +24,7 @@ isolated worktrees, retaining validation and recovery evidence.
 
 ## Requirements
 
-- macOS, Linux, or Windows (Windows: `dispatch-tickets` tracks worker trees with
-  Job Objects; create `%USERPROFILE%\.agents\skills` as a directory junction or
-  symlink to the checkout)
+- macOS or Linux (uses POSIX file locks)
 - Git
 - Rust and Cargo (minimum version in `Cargo.toml`; the committed toolchain selects stable)
 - Network access to the Git repositories declared in `deps.yaml` and any

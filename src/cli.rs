@@ -48,7 +48,9 @@ enum Commands {
 /// synchronization or installation fails.
 pub fn run(args: Vec<OsString>, out: &mut dyn Write) -> Result<()> {
     let cli = Cli::try_parse_from(args)?;
-    let home = std::env::home_dir().context("cannot determine home directory")?;
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .context("HOME is not set")?;
     let (root, target, dry_run, run_sync, no_claude) = match cli.command {
         Commands::Sync {
             dry_run,

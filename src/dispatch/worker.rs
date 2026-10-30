@@ -1,23 +1,8 @@
 use super::{
-    Arc, AtomicBool, Child, Command, Duration, Instant, Mutex, MutexGuard, Ordering, Result,
-    anyhow, bail, ensure, thread,
+    Arc, AtomicBool, Child, Command, CommandExt, Duration, Instant, Mutex, MutexGuard, Ordering,
+    Pid, Result, Signal, anyhow, bail, ensure, signal, thread,
 };
-#[cfg(unix)]
-use nix::{
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
 
-// Workers and checks run in their own process group (Unix) or Job Object
-// (Windows) so the dispatcher can stop and audit the whole process tree.
-#[cfg(unix)]
-pub(super) fn spawn_isolated(command: &mut Command) -> Result<Child> {
-    Ok(command.process_group(0).spawn()?)
-}
-
-#[cfg(unix)]
 pub(super) fn process_alive(pid: u32) -> Result<bool> {
     let output = Command::new("ps").args(["-axo", "pgid=,stat="]).output()?;
     ensure!(output.status.success(), "cannot inspect process groups");
@@ -28,7 +13,6 @@ pub(super) fn process_alive(pid: u32) -> Result<bool> {
     }))
 }
 
-#[cfg(unix)]
 pub(super) fn stop_process(child: &mut Child) -> Result<()> {
     let pid = child.id();
     if process_alive(pid)? {
@@ -60,200 +44,6 @@ pub(super) fn stop_process(child: &mut Child) -> Result<()> {
 
     child.wait()?;
     Ok(())
-}
-
-/// Keeps SIGINT/SIGTERM (Unix) or console control events (Windows) flowing
-/// into the dispatcher's interruption flag until dropped.
-#[cfg(unix)]
-pub(super) struct InterruptGuard(signal_hook::SigId, signal_hook::SigId);
-
-#[cfg(unix)]
-pub(super) fn register_interrupts() -> Result<InterruptGuard> {
-    Ok(InterruptGuard(
-        signal_hook::flag::register(signal_hook::consts::SIGTERM, super::interruption().clone())?,
-        signal_hook::flag::register(signal_hook::consts::SIGINT, super::interruption().clone())?,
-    ))
-}
-
-#[cfg(unix)]
-impl Drop for InterruptGuard {
-    fn drop(&mut self) {
-        signal_hook::low_level::unregister(self.0);
-        signal_hook::low_level::unregister(self.1);
-    }
-}
-
-// Windows tracks each worker tree with a Job Object keyed by the root pid.
-// KILL_ON_JOB_CLOSE also reaps the tree if the dispatcher dies.
-#[cfg(windows)]
-static JOBS: Mutex<std::collections::BTreeMap<u32, usize>> =
-    Mutex::new(std::collections::BTreeMap::new());
-
-#[cfg(windows)]
-pub(super) fn spawn_isolated(command: &mut Command) -> Result<Child> {
-    use std::{
-        ffi::c_void,
-        io, mem,
-        os::windows::{io::AsRawHandle, process::CommandExt},
-    };
-    use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        System::{
-            JobObjects::{
-                AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-                JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-                SetInformationJobObject,
-            },
-            Threading::CREATE_NEW_PROCESS_GROUP,
-        },
-    };
-
-    let mut child = command.creation_flags(CREATE_NEW_PROCESS_GROUP).spawn()?;
-    // SAFETY: plain Win32 calls; `job` is owned here until stored or closed, and
-    // `limits` outlives the call that reads it.
-    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
-    ensure!(
-        !job.is_null(),
-        "cannot create worker job: {}",
-        io::Error::last_os_error()
-    );
-    let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { mem::zeroed() };
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    let configured = unsafe {
-        SetInformationJobObject(
-            job,
-            JobObjectExtendedLimitInformation,
-            (&raw const limits).cast::<c_void>(),
-            mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-        ) != 0
-            && AssignProcessToJobObject(job, child.as_raw_handle()) != 0
-    };
-    if !configured {
-        let error = io::Error::last_os_error();
-        unsafe { CloseHandle(job) };
-        child.kill()?;
-        child.wait()?;
-        bail!("cannot place worker in job: {error}");
-    }
-
-    JOBS.lock()
-        .map_err(|_| anyhow!("worker job registry poisoned"))?
-        .insert(child.id(), job as usize);
-    Ok(child)
-}
-
-#[cfg(windows)]
-pub(super) fn process_alive(pid: u32) -> Result<bool> {
-    use std::{ffi::c_void, io, mem};
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, ERROR_ACCESS_DENIED, STILL_ACTIVE},
-        System::{
-            JobObjects::{
-                JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
-                QueryInformationJobObject,
-            },
-            Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
-        },
-    };
-
-    let mut jobs = JOBS
-        .lock()
-        .map_err(|_| anyhow!("worker job registry poisoned"))?;
-    if let Some(&job) = jobs.get(&pid) {
-        let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { mem::zeroed() };
-        // SAFETY: `job` is a live handle owned by the registry; `info` is a
-        // correctly sized out buffer.
-        let queried = unsafe {
-            QueryInformationJobObject(
-                job as *mut c_void,
-                JobObjectBasicAccountingInformation,
-                (&raw mut info).cast::<c_void>(),
-                mem::size_of::<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>() as u32,
-                std::ptr::null_mut(),
-            ) != 0
-        };
-        ensure!(
-            queried,
-            "cannot inspect worker job: {}",
-            io::Error::last_os_error()
-        );
-        if info.ActiveProcesses > 0 {
-            return Ok(true);
-        }
-
-        jobs.remove(&pid);
-        unsafe { CloseHandle(job as *mut c_void) };
-        return Ok(false);
-    }
-
-    // Pids from a previous dispatcher run have no job here; check the root only.
-    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if process.is_null() {
-        return Ok(io::Error::last_os_error().raw_os_error() == Some(ERROR_ACCESS_DENIED as i32));
-    }
-
-    let mut code = 0;
-    let queried = unsafe { GetExitCodeProcess(process, &mut code) != 0 };
-    unsafe { CloseHandle(process) };
-    Ok(queried && code == STILL_ACTIVE as u32)
-}
-
-#[cfg(windows)]
-pub(super) fn stop_process(child: &mut Child) -> Result<()> {
-    use std::ffi::c_void;
-    use windows_sys::Win32::{Foundation::CloseHandle, System::JobObjects::TerminateJobObject};
-
-    let job = JOBS
-        .lock()
-        .map_err(|_| anyhow!("worker job registry poisoned"))?
-        .remove(&child.id());
-    if let Some(job) = job {
-        // SAFETY: the handle was removed from the registry, so this is its last use.
-        let terminated = unsafe { TerminateJobObject(job as *mut c_void, 1) != 0 };
-        unsafe { CloseHandle(job as *mut c_void) };
-        if !terminated {
-            child.kill()?;
-        }
-    } else if process_alive(child.id())? {
-        child.kill()?;
-    }
-
-    child.wait()?;
-    Ok(())
-}
-
-/// Keeps SIGINT/SIGTERM (Unix) or console control events (Windows) flowing
-/// into the dispatcher's interruption flag until dropped.
-#[cfg(windows)]
-pub(super) struct InterruptGuard;
-
-#[cfg(windows)]
-unsafe extern "system" fn on_console_event(_: u32) -> i32 {
-    super::interruption().store(true, Ordering::SeqCst);
-    1
-}
-
-#[cfg(windows)]
-pub(super) fn register_interrupts() -> Result<InterruptGuard> {
-    use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
-
-    // SAFETY: the handler is a static fn that only stores an atomic flag.
-    ensure!(
-        unsafe { SetConsoleCtrlHandler(Some(on_console_event), 1) } != 0,
-        "cannot register console handler: {}",
-        std::io::Error::last_os_error()
-    );
-    Ok(InterruptGuard)
-}
-
-#[cfg(windows)]
-impl Drop for InterruptGuard {
-    fn drop(&mut self) {
-        use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
-
-        // SAFETY: removes the handler registered in `register_interrupts`.
-        unsafe { SetConsoleCtrlHandler(Some(on_console_event), 0) };
-    }
 }
 
 pub(super) fn watch_worker(
@@ -308,7 +98,7 @@ pub(super) struct Worker {
 
 impl Worker {
     pub(super) fn spawn(mut cmd: Command, timeout: Duration) -> Result<Self> {
-        let child = Arc::new(Mutex::new(spawn_isolated(&mut cmd)?));
+        let child = Arc::new(Mutex::new(cmd.process_group(0).spawn()?));
         let cancelled = Arc::new(AtomicBool::new(false));
         let expired = Arc::new(AtomicBool::new(false));
         let watch_error = Arc::new(Mutex::new(None));

@@ -33,16 +33,8 @@ pub(crate) fn cache_root() -> Result<PathBuf> {
         return Ok(base.join("skillctl"));
     }
 
-    if cfg!(windows)
-        && let Some(base) = env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
-            .filter(|p| p.is_absolute())
-    {
-        return Ok(base.join("skillctl"));
-    }
-
-    let home = env::home_dir().context("cannot determine home directory")?;
-    Ok(home.join(".cache/skillctl"))
+    let home = env::var_os("HOME").context("HOME is not set")?;
+    Ok(PathBuf::from(home).join(".cache/skillctl"))
 }
 
 pub(crate) fn acquire_dependency(dependency: &Dependency, cache: &Path) -> Result<PathBuf> {

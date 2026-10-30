@@ -537,7 +537,6 @@ dependencies = [
  "signal-hook",
  "tempfile",
  "walkdir",
- "windows-sys",
  "yaml-rust2",
 ]
 

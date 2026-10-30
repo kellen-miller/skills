@@ -13,24 +13,13 @@ clap = { version = "4.6.7", features = ["derive"] }
 hex = "0.4.3"
 fs2 = "0.4.3"
 minijinja = { version = "3.0.1", features = ["json", "serde"] }
+nix = { version = "0.31", features = ["signal", "process"] }
 regex = "1.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml_ng = "0.10.0"
 sha2 = "0.11.0"
+signal-hook = "0.4"
 tempfile = "3.23"
 walkdir = "2.5"
 yaml-rust2 = "0.13"
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal", "process"] }
-signal-hook = "0.4"
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = [
-  "Win32_Foundation",
-  "Win32_Security",
-  "Win32_System_Console",
-  "Win32_System_JobObjects",
-  "Win32_System_Threading",
-] }

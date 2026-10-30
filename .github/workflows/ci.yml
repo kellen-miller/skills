@@ -40,16 +40,6 @@ jobs:
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
             GIT_TERMINAL_PROMPT=0 ./target/debug/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Lint
-        run: cargo clippy --all-targets --locked -- -D warnings
-      - name: Test
-        run: cargo test --locked
   duplication:
     name: Code duplication (CPD)
     permissions:
