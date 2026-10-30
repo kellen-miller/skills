@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use anyhow::Result;
 use fs2::FileExt;
 use nix::{
