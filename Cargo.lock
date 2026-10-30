@@ -314,9 +314,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "minijinja"
-version = "3.0.1"
+version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "789a6b737c4a13bec43cd3c1b982aa8a8a192ff4bf444e0fb1fd5a324f064fd1"
+checksum = "00f5a04892e86ddb4fc254e9160835370b63a0d44042d3ab4725bc2dbcbab136"
 dependencies = [
  "serde",
 ]
@@ -388,9 +388,9 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags",
  "errno",
