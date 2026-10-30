@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use anyhow::{Context, Result, bail};
 use fs2::FileExt;
 use serde_json::{Value, json};
