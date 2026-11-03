@@ -577,8 +577,6 @@ dependencies:
           destination: enabling-lambda-vpc-internet-access
         - source: skills/specialized-skills/networking-and-content-delivery-skills/route53
           destination: route53
-        - source: skills/specialized-skills/networking-and-content-delivery-skills/routing-traffic-with-route53-and-cloudfront
-          destination: routing-traffic-with-route53-and-cloudfront
         - source: skills/specialized-skills/networking-and-content-delivery-skills/shieldadvanced
           destination: shieldadvanced
         - source: skills/specialized-skills/networking-and-content-delivery-skills/sitetositevpn
