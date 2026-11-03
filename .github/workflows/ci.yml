@@ -33,7 +33,7 @@ jobs:
             exit "$status"
           fi
       - name: Check Rust workspace
-        uses: kellen-miller/ci/.github/actions/rust-check@7cb397821439001322396a1b022cfa47dbe3a553 # main
+        uses: kellen-miller/ci/.github/actions/rust-check@8616aba7d9f01610e8073cc6002948b73c02f962 # main
       - name: Check standalone dispatcher
         shell: bash
         run: |
@@ -78,7 +78,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@7cb397821439001322396a1b022cfa47dbe3a553 # main
+        uses: kellen-miller/ci/.github/actions/code-duplication@8616aba7d9f01610e8073cc6002948b73c02f962 # main
         with:
           # renovate: datasource=crate depName=jscpd versioning=semver
           version: '5.4.2'
