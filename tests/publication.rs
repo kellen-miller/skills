@@ -184,16 +184,27 @@ fn rust_tooling_replaces_python_and_go_tooling() {
 
 #[test]
 fn ci_is_pr_only_and_uses_shared_rust_and_duplication_checks() {
-    let content = fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
-    let workflow: Value = serde_yaml_ng::from_str(&content).unwrap();
-    let triggers = workflow["on"].as_mapping().unwrap();
-    assert!(triggers.contains_key(Value::String("pull_request".into())));
-    assert!(!triggers.contains_key(Value::String("push".into())));
     let mut actions = Vec::new();
-    for job in workflow["jobs"].as_mapping().unwrap().values() {
-        if let Some(steps) = job["steps"].as_sequence() {
-            actions.extend(steps.iter().filter_map(|step| step["uses"].as_str()));
+    for path in [
+        ".github/workflows/ci.yml",
+        ".github/workflows/code-duplication.yaml",
+    ] {
+        let content = fs::read_to_string(root().join(path)).unwrap();
+        let workflow: Value = serde_yaml_ng::from_str(&content).unwrap();
+        let triggers = workflow["on"].as_mapping().unwrap();
+        assert!(triggers.contains_key(Value::String("pull_request".into())));
+        assert!(!triggers.contains_key(Value::String("push".into())));
+        for job in workflow["jobs"].as_mapping().unwrap().values() {
+            if let Some(steps) = job["steps"].as_sequence() {
+                actions.extend(
+                    steps
+                        .iter()
+                        .filter_map(|step| step["uses"].as_str().map(str::to_owned)),
+                );
+            }
         }
+
+        assert!(!content.contains("setup-go") && !content.contains("setup-uv"));
     }
 
     for name in ["rust-check", "code-duplication"] {
@@ -206,8 +217,6 @@ fn ci_is_pr_only_and_uses_shared_rust_and_duplication_checks() {
             "missing immutable shared action: {name}"
         );
     }
-
-    assert!(!content.contains("setup-go") && !content.contains("setup-uv"));
 }
 
 #[test]
