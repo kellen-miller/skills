@@ -8,5 +8,5 @@ concurrency:
   cancel-in-progress: true
 jobs:
   workflow-validation:
-    name: GitHub Actions
+    name: .github/workflows
     uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@c188397b9147dbf21030cf2f3e4fc41bff37358b # main

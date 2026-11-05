@@ -8,5 +8,5 @@ concurrency:
   cancel-in-progress: true
 jobs:
   config-validation:
-    name: Renovate
+    name: renovate.json
     uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@c188397b9147dbf21030cf2f3e4fc41bff37358b # main

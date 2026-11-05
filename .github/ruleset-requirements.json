@@ -1,8 +1,8 @@
 {
   "checks": [
-    "Renovate / Config validation",
+    "renovate.json / Config validation",
     "Package tests and plugin verification (Linux)",
-    "GitHub Actions / Workflow validation",
+    ".github/workflows / Workflow validation",
     "JSCPD scan"
   ]
 }
