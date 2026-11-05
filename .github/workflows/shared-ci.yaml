@@ -1,15 +1,12 @@
-name: Shared CI
+name: GitHub Actions
 on:
   pull_request:
 permissions:
   contents: read
 concurrency:
-  group: shared-ci-${{ github.event.pull_request.number }}
+  group: github-actions-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   workflows:
     name: GitHub Actions
-    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@8616aba7d9f01610e8073cc6002948b73c02f962 # main
-  renovate:
-    name: Renovate
-    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@8616aba7d9f01610e8073cc6002948b73c02f962 # main
+    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@c188397b9147dbf21030cf2f3e4fc41bff37358b # main

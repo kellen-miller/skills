@@ -1,0 +1,27 @@
+name: Code duplication
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  duplication:
+    name: Code duplication / Duplicate detection
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check Rust duplication
+        uses: kellen-miller/ci/.github/actions/code-duplication@c188397b9147dbf21030cf2f3e4fc41bff37358b # main
+        with:
+          # renovate: datasource=crate depName=jscpd versioning=semver
+          version: '5.4.2'

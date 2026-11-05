@@ -1,8 +1,8 @@
 {
   "checks": [
     "Renovate / Config validation",
-    "test",
+    "Rust / Package tests and plugin verification (Linux)",
     "GitHub Actions / Workflow validation",
-    "Code duplication (CPD)"
+    "Code duplication / Duplicate detection"
   ]
 }

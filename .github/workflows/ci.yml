@@ -1,4 +1,4 @@
-name: CI
+name: Rust
 
 on:
   pull_request:
@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   test:
+    name: Rust / Package tests and plugin verification (Linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -53,6 +54,7 @@ jobs:
             GIT_TERMINAL_PROMPT=0 ./target/debug/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
   windows:
+    name: Rust / Package tests and launcher verification (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -68,17 +70,3 @@ jobs:
         run: cargo test --manifest-path dispatch-tickets/Cargo.toml --locked
       - name: Check PowerShell launcher
         run: ./dispatch-tickets/scripts/run.ps1 --help
-  duplication:
-    name: Code duplication (CPD)
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@8616aba7d9f01610e8073cc6002948b73c02f962 # main
-        with:
-          # renovate: datasource=crate depName=jscpd versioning=semver
-          version: '5.4.2'
