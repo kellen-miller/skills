@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   jscpd-scan:
-    name: Code duplication / JSCPD scan
+    name: JSCPD scan
     permissions:
       contents: read
     runs-on: ubuntu-latest

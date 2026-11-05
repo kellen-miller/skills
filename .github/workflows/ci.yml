@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   package-verification:
-    name: Rust / Package tests and plugin verification (Linux)
+    name: Package tests and plugin verification (Linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -54,7 +54,7 @@ jobs:
             GIT_TERMINAL_PROMPT=0 ./target/debug/skillctl sync --no-claude
           test -z "$(git status --short --untracked-files=all)"
   windows-verification:
-    name: Rust / Package tests and launcher verification (Windows)
+    name: Package tests and launcher verification (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
