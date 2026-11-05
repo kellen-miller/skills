@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  duplication:
-    name: Code duplication / Duplicate detection
+  jscpd-scan:
+    name: Code duplication / JSCPD scan
     permissions:
       contents: read
     runs-on: ubuntu-latest

@@ -3,6 +3,6 @@
     "Renovate / Config validation",
     "Rust / Package tests and plugin verification (Linux)",
     "GitHub Actions / Workflow validation",
-    "Code duplication / Duplicate detection"
+    "Code duplication / JSCPD scan"
   ]
 }

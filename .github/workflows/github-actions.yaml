@@ -7,6 +7,6 @@ concurrency:
   group: github-actions-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
-  workflows:
+  workflow-validation:
     name: GitHub Actions
     uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@c188397b9147dbf21030cf2f3e4fc41bff37358b # main
