@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Rust duplication
-        uses: kellen-miller/ci/.github/actions/code-duplication@c188397b9147dbf21030cf2f3e4fc41bff37358b # main
+        uses: kellen-miller/ci/.github/actions/code-duplication@def0c463d6083ec90ff66116bc0e300a9a727b84 # main
         with:
           # renovate: datasource=crate depName=jscpd versioning=semver
           version: '5.4.2'
