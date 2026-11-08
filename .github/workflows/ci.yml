@@ -34,7 +34,7 @@ jobs:
             exit "$status"
           fi
       - name: Check Rust workspace
-        uses: kellen-miller/ci/.github/actions/rust-check@8616aba7d9f01610e8073cc6002948b73c02f962 # main
+        uses: kellen-miller/ci/.github/actions/rust-check@180e3072c858028ce75b5f948e500429deca15a0 # main
       - name: Check standalone dispatcher
         shell: bash
         run: |

@@ -9,4 +9,4 @@ concurrency:
 jobs:
   config-validation:
     name: renovate.json
-    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@c188397b9147dbf21030cf2f3e4fc41bff37358b # main
+    uses: kellen-miller/ci/.github/workflows/renovate-config-validator.yaml@180e3072c858028ce75b5f948e500429deca15a0 # main
