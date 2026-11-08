@@ -29,15 +29,5 @@
       "datasourceTemplate": "rust-version",
       "versioningTemplate": "semver-coerced"
     }
-  ],
-  "packageRules": [
-    {
-      "description": "Keep the declared Rust minimum and installed CI compiler together.",
-      "matchDatasources": [
-        "rust-version"
-      ],
-      "groupName": "Rust compiler",
-      "groupSlug": "rust-compiler"
-    }
   ]
 }
