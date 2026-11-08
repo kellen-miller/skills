@@ -372,7 +372,7 @@ cpd --config .jscpd.json --no-tips --no-colors
 ./target/debug/skillctl sync --dry-run
 ```
 
-Install the Rust duplication tool with `cargo install jscpd --version 5.4.2 --locked`.
+Install the Rust duplication tool with `cargo install jscpd --version 5.4.3 --locked`.
 CI uses the shared `rust-check` and `code-duplication` actions pinned to the
 reviewed commit from [CI PR #20](https://github.com/kellen-miller/ci/pull/20).
 All maintained executable code and tests in this repository use Rust; downloaded
