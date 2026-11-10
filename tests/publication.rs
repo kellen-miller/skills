@@ -135,6 +135,7 @@ fn public_manifest_contains_only_reviewed_public_dependencies() {
         "azure-skills",
         "redpanda-skills",
         "grafana-gcx",
+        "rea",
     ]
     .into_iter()
     .collect();

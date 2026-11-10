@@ -860,3 +860,13 @@ dependencies:
           destination: synth-investigate-check
         - source: claude-plugin/skills/synth-manage-checks
           destination: synth-manage-checks
+  - id: rea
+    url: https://github.com/morluto/rea.git
+    ref: rea-agents-6.8.0
+    sparse:
+      - .agents/skills/reverse-engineer-anything
+    selection:
+      mode: explicit
+      include:
+        - source: .agents/skills/reverse-engineer-anything
+          destination: reverse-engineer-anything
