@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 mod execution;
@@ -49,7 +49,10 @@ struct Arguments {
 
 #[derive(Subcommand)]
 enum Action {
-    Status,
+    Status {
+        #[arg(long)]
+        summary: bool,
+    },
     Run {
         #[arg(long)]
         jobs: usize,
@@ -57,6 +60,8 @@ enum Action {
         worker_timeout: f64,
         #[arg(long, default_value_t = 300.0)]
         check_timeout: f64,
+        #[arg(long, default_value_t = 300.0)]
+        progress_interval: f64,
         #[arg(long)]
         retry: Vec<String>,
         #[arg(long)]
@@ -180,6 +185,56 @@ fn load_state(path: &Path, graph: &Graph, head: String) -> Result<State> {
         "invalid task status or history"
     );
     Ok(state)
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+/// Append a timestamped event to `events.jsonl` beside the state and echo it on stdout.
+fn record_event(directory: &Path, mut event: Value) -> Result<()> {
+    event["at"] = json!(unix_now());
+    let line = serde_json::to_string(&event)?;
+    let mut events = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(directory.join("events.jsonl"))?;
+    writeln!(events, "{line}")?;
+    println!("{line}");
+    Ok(())
+}
+
+/// Compact run snapshot shared by `status --summary` and periodic progress events.
+fn progress(graph: &Graph, state: &State) -> Value {
+    let now = unix_now();
+    let mut counts = BTreeMap::new();
+    let mut running = Vec::new();
+    let mut blocked = Vec::new();
+    for (id, item) in &state.tasks {
+        let status = item["status"].as_str().unwrap_or("unknown");
+        *counts.entry(status).or_insert(0) += 1;
+        match status {
+            "running" => running.push(json!({
+                "task": id,
+                "attempt": item["history"].as_array().map_or(0, Vec::len) + 1,
+                "elapsed_seconds": item["started_at"].as_u64().map(|start| now.saturating_sub(start)),
+                "log": item["worker_log"],
+            })),
+            "blocked" => blocked.push(json!({"task": id, "reason": item["reason"]})),
+            _ => {}
+        }
+    }
+
+    json!({
+        "total": state.tasks.len(),
+        "counts": counts,
+        "running": running,
+        "blocked": blocked,
+        "ready": frontier(graph, state),
+        "integration_head": state.integration_head,
+    })
 }
 
 fn task_state<'a>(state: &'a State, id: &str) -> Result<&'a Value> {
@@ -401,10 +456,10 @@ fn integrate(
         task_state_mut(state, id)?["status"] = json!("integrated");
         task_state_mut(state, id)?["integration_checks"] = proof;
         save_state(path, state)?;
-        println!(
-            "{}",
-            json!({"event":"integrated","task":id,"commit":state.integration_head})
-        );
+        record_event(
+            path.parent().context("dispatch state has no parent")?,
+            json!({"event":"integrated","task":id,"commit":state.integration_head}),
+        )?;
     }
 
     Ok(())
@@ -442,11 +497,16 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
         .context("graph has no parent")?
         .join("dispatch");
     match args.command {
-        Action::Status => {
+        Action::Status { summary } => {
             let head = commit(&repo, "HEAD")?;
             let state = load_state(&directory.join("state.json"), &graph, head.clone())?;
-            let mut output = serde_json::to_value(&state)?;
-            output["ready"] = json!(frontier(&graph, &state));
+            let mut output = if summary {
+                progress(&graph, &state)
+            } else {
+                let mut output = serde_json::to_value(&state)?;
+                output["ready"] = json!(frontier(&graph, &state));
+                output
+            };
             output["observed_head"] = json!(head);
             println!("{}", serde_json::to_string_pretty(&output)?);
         }
@@ -454,20 +514,23 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
             jobs,
             worker_timeout,
             check_timeout,
+            progress_interval,
             retry,
             accept_head,
         } => {
             ensure!(
                 jobs > 0
-                    && [worker_timeout, check_timeout]
+                    && [worker_timeout, check_timeout, progress_interval]
                         .iter()
                         .all(|n| n.is_finite() && *n > 0.0),
-                "jobs and timeouts must be positive"
+                "jobs, timeouts, and progress interval must be positive"
             );
             let worker_timeout =
                 Duration::try_from_secs_f64(worker_timeout).context("invalid worker timeout")?;
             let check_timeout =
                 Duration::try_from_secs_f64(check_timeout).context("invalid check timeout")?;
+            let progress_interval = Duration::try_from_secs_f64(progress_interval)
+                .context("invalid progress interval")?;
             ensure!(
                 git(&repo, &["status", "--porcelain", "--untracked-files=all"])?.is_empty(),
                 "integration worktree must be clean before run"
@@ -488,6 +551,7 @@ pub fn run(args: Vec<OsString>) -> Result<()> {
                 jobs,
                 worker_timeout,
                 check_timeout,
+                progress_interval,
                 retry: &retry,
                 accept_head: accept_head.as_deref(),
             }
@@ -575,6 +639,7 @@ mod tests {
             jobs: 1,
             worker_timeout: Duration::from_secs(60),
             check_timeout: Duration::from_secs(60),
+            progress_interval: Duration::from_secs(60),
             retry: &[],
             accept_head: None,
         };

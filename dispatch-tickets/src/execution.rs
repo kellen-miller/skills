@@ -1,9 +1,9 @@
 use super::{
-    BTreeMap, Command, Context, Digest, Duration, File, Graph, Ordering, Path, PathBuf, Result,
-    Sha256, State, Ticket, Value, Worker, ancestor, commit, ensure, frontier, fs, git, integrate,
-    interruption, json, load_state, merge_matches, process_alive, run_checks, save_state,
-    settle_children, stop_process, task_state, task_state_mut, text, thread, verify_integration,
-    verify_worker,
+    BTreeMap, Command, Context, Digest, Duration, File, Graph, Instant, Ordering, Path, PathBuf,
+    Result, Sha256, State, Ticket, Value, Worker, ancestor, commit, ensure, frontier, fs, git,
+    integrate, interruption, json, load_state, merge_matches, process_alive, progress,
+    record_event, run_checks, save_state, settle_children, stop_process, task_state,
+    task_state_mut, text, thread, unix_now, verify_integration, verify_worker,
 };
 
 pub(super) struct Execution<'a> {
@@ -12,6 +12,7 @@ pub(super) struct Execution<'a> {
     pub(super) jobs: usize,
     pub(super) worker_timeout: Duration,
     pub(super) check_timeout: Duration,
+    pub(super) progress_interval: Duration,
     pub(super) retry: &'a [String],
     pub(super) accept_head: Option<&'a str>,
 }
@@ -53,11 +54,10 @@ impl Execution<'_> {
         self.verify_adopted_heads(run, directory)?;
         self.integrate_validated(run)?;
         self.execute_tickets(run, directory)?;
-        println!(
-            "{}",
-            json!({"event":"complete","integration_head":run.state.integration_head})
-        );
-        Ok(())
+        record_event(
+            directory,
+            json!({"event":"complete","integration_head":run.state.integration_head}),
+        )
     }
 
     pub(super) fn reconcile_merges(&self, run: &mut RunState) -> Result<()> {
@@ -195,6 +195,7 @@ impl Execution<'_> {
     }
 
     pub(super) fn execute_tickets(&self, run: &mut RunState, directory: &Path) -> Result<()> {
+        let mut next_progress = Instant::now() + self.progress_interval;
         while run
             .state
             .tasks
@@ -211,6 +212,13 @@ impl Execution<'_> {
                 !run.active.is_empty(),
                 "no runnable tickets; inspect graph and state"
             );
+            if Instant::now() >= next_progress {
+                let mut snapshot = progress(self.graph, &run.state);
+                snapshot["event"] = json!("progress");
+                record_event(directory, snapshot)?;
+                next_progress = Instant::now() + self.progress_interval;
+            }
+
             let completed = self.completed_workers(run)?;
             if completed.is_empty() {
                 run.current = None;
@@ -220,7 +228,7 @@ impl Execution<'_> {
 
             for id in completed {
                 run.current = Some(id.clone());
-                self.finish_worker(run, &id)?;
+                self.finish_worker(run, &id, directory)?;
             }
         }
 
@@ -311,6 +319,7 @@ impl Execution<'_> {
         let item = task_state_mut(&mut run.state, id)?;
         item["status"] = json!("running");
         item["starting_commit"] = json!(head);
+        item["started_at"] = json!(unix_now());
         item["worker_path"] = json!(worker_path);
         item["worker_branch"] = json!(format!("refs/heads/{branch}"));
         item["pid"] = Value::Null;
@@ -343,10 +352,10 @@ impl Execution<'_> {
         item["worker_command"] = json!(ticket.worker);
         item["worker_log"] = json!(log_path);
         save_state(&run.state_path, &run.state)?;
-        println!(
-            "{}",
-            json!({"event":"started","task":id,"worktree":worker_path})
-        );
+        record_event(
+            directory,
+            json!({"event":"started","task":id,"attempt":attempt,"worktree":worker_path,"log":log_path}),
+        )?;
         Ok(worker)
     }
 
@@ -367,7 +376,12 @@ impl Execution<'_> {
         Ok(completed)
     }
 
-    pub(super) fn finish_worker(&self, run: &mut RunState, id: &str) -> Result<()> {
+    pub(super) fn finish_worker(
+        &self,
+        run: &mut RunState,
+        id: &str,
+        directory: &Path,
+    ) -> Result<()> {
         let worker = run
             .active
             .get_mut(id)
@@ -417,6 +431,10 @@ impl Execution<'_> {
         item["result_commit"] = json!(result_commit);
         item["worker_checks"] = proof;
         save_state(&run.state_path, &run.state)?;
+        record_event(
+            directory,
+            json!({"event":"validated","task":id,"commit":result_commit}),
+        )?;
         integrate(
             self.repo,
             self.graph,
@@ -429,6 +447,7 @@ impl Execution<'_> {
 
     pub(super) fn preserve_failed_run(&self, run: &mut RunState, error: &anyhow::Error) {
         let mut cleanup_errors = Vec::new();
+        let mut blocked = Vec::new();
         if let Some(id) = &run.current {
             let current_status = match task_state(&run.state, id) {
                 Ok(item) => item["status"].as_str().map(str::to_owned),
@@ -452,6 +471,9 @@ impl Execution<'_> {
                     Ok(item) => {
                         item["status"] = json!(next_status);
                         item["reason"] = json!(format!("{error:#}"));
+                        if next_status == "blocked" {
+                            blocked.push(id.clone());
+                        }
                     }
                     Err(error) => {
                         cleanup_errors.push(format!("cannot block current ticket {id}: {error:#}"))
@@ -477,6 +499,7 @@ impl Execution<'_> {
                     item["status"] = json!("blocked");
                     if run.current.as_ref() != Some(id) {
                         item["reason"] = json!("run stopped; inspect retained work before retry");
+                        blocked.push(id.clone());
                     }
                 }
                 Err(error) => {
@@ -487,6 +510,16 @@ impl Execution<'_> {
 
         if let Err(error) = save_state(&run.state_path, &run.state) {
             cleanup_errors.push(format!("cannot save failure state: {error:#}"));
+        }
+
+        if let Some(directory) = run.state_path.parent() {
+            for id in blocked {
+                let reason = &run.state.tasks[&id]["reason"];
+                let event = json!({"event":"blocked","task":id,"reason":reason});
+                if let Err(error) = record_event(directory, event) {
+                    cleanup_errors.push(format!("cannot record blocked event: {error:#}"));
+                }
+            }
         }
         for error in cleanup_errors {
             eprintln!("ERROR: failure cleanup: {error}");
