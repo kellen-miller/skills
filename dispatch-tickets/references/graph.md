@@ -101,6 +101,13 @@ a serial merge, and integration checks. Configure checks as local, repeatable
 commands without publication/deployment side effects.
 
 State is saved atomically under `dispatch/state.json`, with logs alongside it.
+`dispatch/events.jsonl` is an append-only progress log, also echoed to stdout,
+one JSON object per line with an `at` Unix-seconds timestamp. Events:
+`started`, `validated`, `integrated`, `blocked`, `complete`, and a periodic
+`progress` heartbeat every `--progress-interval` seconds (default 300).
+`status --summary` prints the same snapshot as `progress`: status counts,
+running tickets with attempt, elapsed seconds and log, blocked reasons, and
+the ready frontier.
 The lifecycle is pending → running → validated → merging → checking → integrated;
 failures become blocked. Commands, exit codes, exact commits, paths, and prior
 attempts are retained. The dispatcher stops the run on a failure and preserves the

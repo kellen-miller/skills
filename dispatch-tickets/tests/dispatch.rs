@@ -161,6 +161,13 @@ impl Fixture {
         )?)?)
     }
 
+    fn events(&self) -> Result<Vec<Value>> {
+        fs::read_to_string(self.work.join("dispatch/events.jsonl"))?
+            .lines()
+            .map(|line| Ok(serde_json::from_str(line)?))
+            .collect()
+    }
+
     fn save_state(&self, state: &Value) -> Result<()> {
         fs::write(
             self.work.join("dispatch/state.json"),
@@ -240,6 +247,17 @@ fn parallel_workers_and_dependency_start_from_integrated_tip() -> Result<()> {
     for id in ["a", "b", "c"] {
         assert!(f.repo.join(format!("{id}.txt")).exists());
     }
+
+    let events = f.events()?;
+    assert!(events.iter().all(|event| event["at"].is_u64()));
+    for kind in ["started", "validated", "integrated"] {
+        assert_eq!(events.iter().filter(|e| e["event"] == kind).count(), 3);
+    }
+    assert_eq!(events.last().unwrap()["event"], "complete");
+    let summary: Value =
+        serde_json::from_slice(&passed(f.call(&["status", "--summary"])?).stdout).unwrap();
+    assert_eq!(summary["total"], 3);
+    assert_eq!(summary["counts"]["integrated"], 3);
 
     let head = f.git(&["rev-parse", "HEAD"])?;
     passed(f.call(&["run", "--jobs", "2"])?);
@@ -463,7 +481,15 @@ fn worker_timeout_preserves_work_and_blocks_ticket() -> Result<()> {
     let mut f = Fixture::new()?;
     f.mode(0, "slow", &[])?;
     failed(
-        f.call(&["run", "--jobs", "1", "--worker-timeout", "0.2"])?,
+        f.call(&[
+            "run",
+            "--jobs",
+            "1",
+            "--worker-timeout",
+            "0.5",
+            "--progress-interval",
+            "0.1",
+        ])?,
         "timed out",
     );
     let state = f.state()?;
@@ -471,6 +497,25 @@ fn worker_timeout_preserves_work_and_blocks_ticket() -> Result<()> {
     assert_eq!(item["status"], "blocked");
     assert!(item["reason"].as_str().unwrap().contains("timed out"));
     assert!(Path::new(item["worker_path"].as_str().unwrap()).is_dir());
+
+    let events = f.events()?;
+    let heartbeat = events
+        .iter()
+        .find(|event| event["event"] == "progress")
+        .expect("progress heartbeat");
+    assert_eq!(heartbeat["running"][0]["task"], "a");
+    assert_eq!(heartbeat["running"][0]["attempt"], 1);
+    assert_eq!(events.last().unwrap()["event"], "blocked");
+    assert_eq!(events.last().unwrap()["task"], "a");
+    let summary: Value =
+        serde_json::from_slice(&passed(f.call(&["status", "--summary"])?).stdout).unwrap();
+    assert_eq!(summary["counts"]["blocked"], 1);
+    assert!(
+        summary["blocked"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("timed out")
+    );
 
     Ok(())
 }
