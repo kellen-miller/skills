@@ -9,4 +9,4 @@ concurrency:
 jobs:
   workflow-validation:
     name: .github/workflows
-    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@180e3072c858028ce75b5f948e500429deca15a0 # main
+    uses: kellen-miller/ci/.github/workflows/gh-actions-lint.yaml@4f4e514ee184fbd03b393a6d0e4bccb5eea63a9a # main
