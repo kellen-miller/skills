@@ -445,10 +445,10 @@ dependencies:
           destination: aws-auth
         - source: skills/core-skills/aws-billing-and-cost-management
           destination: aws-billing-and-cost-management
-        - source: skills/core-skills/aws-blocks
-          destination: aws-blocks
         - source: skills/core-skills/aws-cdk
           destination: aws-cdk
+        - source: skills/core-skills/aws-cdk-blocks
+          destination: aws-cdk-blocks
         - source: skills/core-skills/aws-cloudformation
           destination: aws-cloudformation
         - source: skills/core-skills/aws-compute
